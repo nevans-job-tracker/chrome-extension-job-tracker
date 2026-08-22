@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Save Wellfound job</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header class="popup-header">
+        <p class="eyebrow">JOB TRACKER</p>
+        <h1>Save Wellfound job</h1>
+        <p class="subtitle">Review everything before creating the record.</p>
+      </header>
+
+      <div id="status-message" class="notice notice-info" role="status">
+        Reading the current posting…
+      </div>
+
+      <a id="recovery-link" class="button-link recovery-link" target="_blank" rel="noopener" hidden>
+        Open this job’s detail page
+      </a>
+
+      <section id="warnings" class="notice notice-warning" hidden>
+        <strong>Check these fields</strong>
+        <ul id="warning-list"></ul>
+      </section>
+
+      <form id="application-form" hidden>
+        <div class="field-grid field-grid-two">
+          <label>
+            <span>Company *</span>
+            <input name="company" required />
+          </label>
+          <label>
+            <span>Role title *</span>
+            <input name="role_title" required />
+          </label>
+        </div>
+
+        <label>
+          <span>Job link</span>
+          <input name="job_link" type="url" />
+        </label>
+
+        <div class="field-grid profile-grid">
+          <label>
+            <span>Source</span>
+            <input name="source" />
+          </label>
+          <label>
+            <span>Location</span>
+            <input name="location" />
+          </label>
+          <label>
+            <span>Company size</span>
+            <select name="company_size">
+              <option value="">Not stated</option>
+              <option value="seed">Seed (1–10)</option>
+              <option value="early">Early (11–50)</option>
+              <option value="mid_size">Mid-size (51–200)</option>
+              <option value="large">Large (201–500)</option>
+              <option value="very_large">Very Large (501–1000)</option>
+              <option value="massive">Massive (1001+)</option>
+            </select>
+          </label>
+          <label>
+            <span>Years experience</span>
+            <input name="years_experience_min" type="number" min="0" />
+          </label>
+        </div>
+
+        <div class="field-grid tracking-grid">
+          <label>
+            <span>Salary min</span>
+            <input name="salary_min" type="number" step="any" />
+          </label>
+          <label>
+            <span>Salary max</span>
+            <input name="salary_max" type="number" step="any" />
+          </label>
+          <label>
+            <span>Tracking status</span>
+            <select name="status" id="tracking-status">
+              <option value="interested" selected>Interested</option>
+              <option value="applied">Applied</option>
+            </select>
+          </label>
+          <label>
+            <span>Date applied</span>
+            <input name="date_applied" id="date-applied" type="date" />
+          </label>
+        </div>
+
+        <details>
+          <summary>Job description</summary>
+          <label class="sr-only" for="job-description">Job description</label>
+          <textarea id="job-description" name="job_description" rows="10"></textarea>
+        </details>
+
+        <div id="submit-error" class="notice notice-error" role="alert" hidden></div>
+
+        <button id="create-button" type="submit">Create application</button>
+      </form>
+
+      <section id="success-panel" class="success-panel" hidden>
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <h2>Application created</h2>
+        <p id="success-summary"></p>
+        <a id="created-link" class="button-link" target="_blank" rel="noopener">Open in Job Tracker</a>
+      </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

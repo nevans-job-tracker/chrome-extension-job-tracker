@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Wellfound to Job Tracker",
+  "version": "0.1.3",
+  "description": "Review a Wellfound job posting and save it to the LAN Job Tracker.",
+  "action": {
+    "default_title": "Save Wellfound job",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://192.168.0.151/*"
+  ]
+}
