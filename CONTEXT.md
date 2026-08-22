@@ -1,33 +1,24 @@
-# Persisted project context
+# Project context
 
 Last updated: 2026-08-22
 
-## Workspace
+This document preserves the technical decisions and integration contract
+needed to maintain the extension. Machine-specific paths and deployment values
+belong in the ignored `LOCAL_CONTEXT.md` file instead.
 
-The parent `job-tracker` directory is a workspace, not a Git repository. Its
-relevant sibling directories are:
+## Job Tracker integration contract
 
-- `chrome-extension-wellfound` — this extension project
-- `job-tracker-frontend` — React/Vite tracker UI
-- `job-tracker-backend` — FastAPI tracker API
-- `job-tracker-docs` — shared architecture and requirements
-
-Do not edit the `docs/` submodule copies inside either code repository. Shared
-documentation changes belong in the top-level `job-tracker-docs` repository.
-
-## Existing tracker integration contract
-
-Deployed origin: `http://192.168.0.151/`
+Configured origin: `{TRACKER_ORIGIN}`
 
 Create endpoint:
 
 ```text
-POST http://192.168.0.151/api/applications
+POST {TRACKER_ORIGIN}/api/applications
 Content-Type: application/json
 ```
 
-Nginx strips `/api/` before proxying to the loopback FastAPI service. The API
-route itself is `/applications` and returns the created record with status 201.
+The extension expects the endpoint to return the created record, including its
+`id`, with HTTP status 201.
 
 Payload fields used by the extension:
 
@@ -40,13 +31,13 @@ Payload fields used by the extension:
 | `location` | Nullable string |
 | `company_size` | Nullable enum |
 | `years_experience_min` | Nullable integer, minimum 0 |
-| `status` | `applied` or `interested` for this workflow |
+| `status` | `applied` or `interested` |
 | `salary_min`, `salary_max` | Nullable numbers; min may not exceed max |
 | `date_applied` | Date string or null |
 | `notes`, `next_action`, `next_action_date` | Created as null |
 | `job_description` | Nullable plain text |
 
-Company-size enum mapping already used by the tracker:
+Company-size mapping:
 
 | Wellfound size | API value |
 |---|---|
@@ -57,88 +48,73 @@ Company-size enum mapping already used by the tracker:
 | 501–1000 | `very_large` |
 | 1001+ | `massive` |
 
-The tracker has no authentication and is intentionally LAN-only. Applications
-are archived, never hard-deleted, so live smoke tests should be deliberate.
+Authentication is not implemented by this extension. Deployments should
+protect the tracker according to their own network and security requirements.
 
 ## Extension decisions
 
-- Manifest V3.
-- No framework and no production bundling.
-- `activeTab` + `scripting` instead of permanent Wellfound host access.
-- Exact host permission `http://192.168.0.151/*` for the API request.
-- The extension popup performs the request; no service worker is needed.
-- Scraping is based on semantic headings, labels, links, and text patterns—not
+- Manifest V3 with no framework or production bundling.
+- `activeTab` plus `scripting` instead of permanent Wellfound host access.
+- A host permission limited to the configured tracker origin.
+- The popup performs the request; no service worker is needed.
+- Scraping uses semantic headings, labels, links, and text patterns rather than
   Wellfound's generated CSS class names.
-- Two rendered layouts are supported: public/canonical pages with an **About
-  the job** heading, and signed-in company-profile pages whose heading is
-  formatted as `{role} at {company}` and whose details use labeled sidebars.
+- Public job pages and signed-in company-profile job layouts are supported.
 - Labeled sidebar values may share a container with the label or appear in the
-  nearest following container. Both forms are supported, including Wellfound's
-  split `Company size` / `201-500 people` markup.
-- The full description is stored as plain paragraphs and `- ` list items.
-- Salary parsing currently supports USD/CAD/AUD/NZD/EUR/GBP/INR symbols or
-  codes plus `k`, `m`, and Indian `L` suffixes.
-- Interested is the popup default and always sends a null application date.
-  Choosing Applied fills today's local calendar date.
-- Currency is intentionally neither displayed nor sent. Salaries in this
-  workflow are assumed to be dollars, and the tracker field is due to be
-  removed.
+  nearest following container. Both forms are supported.
+- Descriptions are stored as plain paragraphs and `- ` list items.
+- Salary parsing supports common currency symbols or codes plus `k`, `m`, and
+  Indian `L` suffixes, although currency itself is not sent to the tracker.
+- Interested is the default and sends a null application date. Choosing
+  Applied fills today's local date.
 - Missing optional fields generate warnings rather than blocking creation.
 
-## Supplied example URLs
+## Supported URL forms
 
-- `https://wellfound.com/jobs/4575515-software-engineer-in-test`
-- `https://wellfound.com/jobs/4544552-software-qa-engineer-mgr-remote`
-- `https://wellfound.com/jobs/4617271-senior-quality-assurance-analyst`
-- `https://wellfound.com/jobs?job_listing_slug=4548046-manual-tester`
-- `https://wellfound.com/jobs?job_listing_slug=4588255-quality-control-programmer`
+- Canonical posting: `https://wellfound.com/jobs/{id}-{slug}`
+- Search URL: `https://wellfound.com/jobs?job_listing_slug={id}-{slug}`
+- Signed-in company page containing `/jobs/{id}-{slug}`
 
-Query-style links may render a signed-in details panel, but in a signed-out
-session they currently show the generic jobs landing page. Their canonical
-detail URLs are derived without guessing:
+Query-style links may show a rendered details panel or only the generic jobs
+landing page. When details are unavailable, the extension derives a canonical
+recovery URL without scraping or submitting the landing page.
 
-- `https://wellfound.com/jobs/4548046-manual-tester`
-- `https://wellfound.com/jobs/4588255-quality-control-programmer`
+## Verification history
 
-## Read-only live verification on 2026-08-21
+During initial development, the extractor was checked read-only against five
+representative Wellfound postings covering:
 
-The exact extractor function was run against the five canonical detail pages.
-Observed key results:
+- stated and unstated salary ranges
+- remote locations
+- every relevant company-size mapping
+- canonical and query-style URLs
+- public and signed-in company-profile layouts
 
-| Posting | Company | Location | Size | Experience | Salary |
-|---|---|---|---|---:|---|
-| Software Engineer in Test | Roadie | Remote (Everywhere) | `large` | 3 | Not stated |
-| Software QA Engineer Mgr | Arthrex | Remote (United States) | `massive` | 10 | USD 131,000–270,000 |
-| Senior Quality Assurance Analyst | Corserv Solutions | Remote (United States) | `mid_size` | 5 | Not stated |
-| Manual Tester | The Phoenix Team | Remote (United States) | `mid_size` | 2 | Not stated |
-| Quality Control Programmer | Durex Industries | Remote (United States) | `large` | 3 | Not stated |
-
-All returned a nonempty full description. No Apply button was clicked and no
-tracker request was made during this verification.
-
-## Testing state
+No Apply button was clicked and no tracker record was created during that
+read-only verification.
 
 Automated tests cover:
 
-- canonical and query-style URL behavior
-- signed-in company-profile job layout behavior
-- generic landing-page refusal and recovery URL
-- required field extraction
+- canonical, query-style, and signed-in layout behavior
+- generic landing-page refusal and recovery URLs
+- required-field extraction
 - remote location, company-size, and experience mapping
 - salary present/absent and Indian lakh parsing
 - Applied/Interested payload behavior
-- successful API request, FastAPI validation errors, and LAN failures
+- successful API requests, validation errors, and connection failures
 
 Latest result: 3 test files, 15 tests, all passing.
 
-Normal setup is `npm install` followed by `npm test`. During initial development,
-the already-installed compatible Vitest/jsdom copies in the sibling frontend
-repository were also used for verification because package network access was
-restricted. The two direct development dependency versions are pinned exactly
-in `package.json`; there is no lockfile because the restricted local npm cache
-could not reconstruct a valid cross-platform one without registry metadata.
+Run `npm install` followed by `npm test` for normal verification.
 
-## Useful primary documentation
+## Maintainer notes
+
+Keep deployment-specific addresses, workspace paths, and local testing
+shortcuts in `LOCAL_CONTEXT.md`. That file is intentionally ignored by Git so
+public documentation can remain reusable without discarding local working
+context.
+
+Useful primary documentation:
 
 - Chrome activeTab: <https://developer.chrome.com/docs/extensions/develop/concepts/activeTab>
 - Chrome scripting: <https://developer.chrome.com/docs/extensions/reference/api/scripting>

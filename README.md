@@ -1,121 +1,131 @@
 # Wellfound to Job Tracker
 
-A small Chrome extension that reads the Wellfound job currently on screen,
-lets you review the extracted fields, and creates a record in the Job Tracker
-running on the home LAN.
+A Manifest V3 Chrome extension that extracts details from the Wellfound job
+currently on screen, lets you review the fields, and creates a record in a
+compatible self-hosted Job Tracker.
 
-The extension is intentionally plain HTML, CSS, and JavaScript. Chrome loads
-the source directory directly; there is no production build step.
+The extension uses plain HTML, CSS, and JavaScript. Chrome loads the repository
+directly, so there is no production build step.
+
+## What it captures
+
+- Company and role title
+- Canonical Wellfound job link
+- Location and company size
+- Minimum experience
+- Salary range when stated
+- Full job description as plain text
+
+Missing optional fields remain editable and are highlighted before submission.
+
+## Requirements
+
+- Google Chrome or another Chromium browser that supports Manifest V3
+- A reachable Job Tracker API compatible with the payload described in
+  [CONTEXT.md](CONTEXT.md)
+- Node.js and npm only if you want to run the automated tests
+
+## Configure the Job Tracker
+
+The tracker origin is deployment-specific and currently appears in two files:
+
+1. Set `TRACKER_ORIGIN` in `src/api.js` to the origin serving your tracker.
+2. Give the same origin a matching entry under `host_permissions` in
+   `manifest.json`.
+
+For example, if the tracker is available at `http://job-tracker.local`, use
+that value in `src/api.js` and `http://job-tracker.local/*` in
+`manifest.json`. The two values must stay aligned or Chrome will block the API
+request.
 
 ## Install it in Chrome
 
-1. Make sure this computer is connected to the same LAN as the Job Tracker.
-2. Open `chrome://extensions` in Chrome.
-3. Turn on **Developer mode** in the upper-right corner.
-4. Click **Load unpacked**.
-5. Select this directory:
+1. Clone or download this repository.
+2. Configure the Job Tracker origin as described above.
+3. Open `chrome://extensions` in Chrome.
+4. Turn on **Developer mode**.
+5. Click **Load unpacked** and select the cloned repository folder.
+6. Optionally pin **Wellfound to Job Tracker** from Chrome's Extensions menu.
 
-   `C:\Users\evans\Projects\job-tracker\chrome-extension-wellfound`
-
-6. Open Chrome's Extensions menu and pin **Wellfound to Job Tracker** if you
-   want its button to stay visible.
-
-Chrome may show a one-time prompt allowing the extension to connect to devices
-on the local network. Allow it so the extension can reach
-`http://192.168.0.151`.
+Chrome may ask for permission to reach devices on the local network when the
+configured tracker uses a LAN address. Allow it if that is where your tracker
+is hosted.
 
 ## Use it
 
 1. Open a Wellfound job's detail page.
 2. Click the extension button.
-3. Review the extracted fields. Missing optional fields are called out in a
-   yellow warning box and may be filled manually.
-4. **Interested** is selected by default and saves no application date. Choose
+3. Review the extracted values and correct any missing fields.
+4. Leave **Interested** selected to save no application date, or choose
    **Applied** to use today's date.
 5. Click **Create application**.
-6. Use **Open in Job Tracker** to view or edit the new record.
+6. Use **Open in Job Tracker** to view the new record.
 
-Some Wellfound search links use a URL like
-`/jobs?job_listing_slug=4548046-manual-tester`. When Wellfound does not render
-the job's details panel, the popup displays **Open this job's detail page**.
-Open that link and click the extension again.
+Some Wellfound search links use a URL such as
+`/jobs?job_listing_slug=4548046-manual-tester`. If Wellfound has not rendered
+the posting's details panel, the popup provides an **Open this job's detail
+page** recovery link. Signed-in company-profile job layouts are also supported.
 
-Signed-in Wellfound sessions may instead show a job embedded directly inside a
-company profile. That layout is supported too, even though it has no **About
-the job** heading.
+Currency is deliberately absent from the form and request. This workflow
+assumes dollar salaries.
 
-Currency is deliberately absent from the review form and create request. This
-workflow assumes dollar salaries, and the tracker is expected to remove that
-field.
-
-Creating a record is the only write action. Merely opening the popup never
-changes the tracker. The create button is disabled while a request is running
-and remains unavailable after success, which prevents accidental double-click
-submissions.
+Opening the popup only reads the visible posting. The tracker is changed only
+after **Create application** is clicked, and the button is disabled while the
+request is running to prevent duplicate submissions.
 
 ## Troubleshooting
 
 ### “Could not reach the Job Tracker”
 
-- Confirm the computer is on the home LAN.
-- Open <http://192.168.0.151/> directly to verify that the server is running.
-- Check whether Chrome is waiting for Local Network Access permission.
+- Confirm the configured tracker origin is correct and reachable in Chrome.
+- Confirm `src/api.js` and `manifest.json` specify the same origin.
+- If the tracker is hosted on a LAN, check Chrome's Local Network Access
+  permission.
 
 ### “The job details are not open”
 
-Use the recovery link in the popup or open the job title so Wellfound shows the
-full posting, including its **About the job** section.
+Use the recovery link in the popup or open the job title so Wellfound renders
+the complete posting.
 
 ### Fields are missing or incorrect
 
 Edit them in the popup before creating the record. If the same field fails on
-several jobs, Wellfound may have changed its page structure; add a reduced HTML
+several jobs, Wellfound may have changed its page structure. Add a reduced HTML
 fixture under `tests/` before adjusting `src/extractor.js`.
 
 ### Changes do not appear in Chrome
 
-Return to `chrome://extensions` and click the extension's reload button. Open
-the Wellfound page again if Chrome reports that its previous tab access ended.
+Return to `chrome://extensions` and click the extension's reload button. Then
+refresh the Wellfound page before opening the extension again.
 
 ## Development
 
-Requirements:
-
-- Node.js 22.22.2+ or 24.15+
-- npm
-
-Install the pinned test dependencies and run the tests:
+Install the pinned development dependencies and run the test suite:
 
 ```powershell
 npm install
 npm test
 ```
 
-The source files are loaded directly by Chrome:
+Project structure:
 
-- `manifest.json` — Manifest V3 declaration and narrow permissions
+- `manifest.json` — Manifest V3 declaration and permissions
 - `popup.html`, `popup.css`, `popup.js` — review and submission interface
 - `src/extractor.js` — self-contained Wellfound DOM extractor
 - `src/payload.js` — tracker payload conversion
-- `src/api.js` — LAN API client
+- `src/api.js` — Job Tracker API client
 - `tests/` — extractor, payload, and API tests
 
-The tracker address is present in two places that must stay aligned:
+## Security and privacy
 
-- `src/api.js` contains the request URL.
-- `manifest.json` grants Chrome permission to contact that host.
-
-Changing only one will break submission.
-
-## Security boundaries
-
-- Wellfound access is temporary and begins only when the extension button is
-  clicked (`activeTab` plus `scripting`).
-- The only persistent host permission is the exact LAN tracker host.
+- Wellfound access is temporary and begins only when the extension is clicked
+  (`activeTab` plus `scripting`).
+- The persistent host permission is limited to the configured tracker origin.
 - Scraped text is assigned through form values or `textContent`; Wellfound HTML
   is never inserted into the extension popup.
 - No credentials, cookies, browsing history, analytics, or remote code are
   collected.
 
-See [PLAN.md](PLAN.md) for the implementation plan and [CONTEXT.md](CONTEXT.md)
-for the integration contract and live verification notes.
+See [PLAN.md](PLAN.md) for the implementation history and
+[CONTEXT.md](CONTEXT.md) for the public integration contract and maintenance
+notes.

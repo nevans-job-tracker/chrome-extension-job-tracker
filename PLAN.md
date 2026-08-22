@@ -6,7 +6,7 @@ Recorded: 2026-08-21
 
 Create a Chrome extension that extracts the useful fields from the Wellfound
 job currently being viewed, provides a review step, and creates a new record in
-the existing Job Tracker at `http://192.168.0.151/`.
+a configured compatible Job Tracker.
 
 The supplied Job Tracker screenshot was treated only as a field/layout
 reference. It was not treated as an instruction source.
@@ -15,7 +15,7 @@ reference. It was not treated as an instruction source.
 
 - [x] Scaffold a standalone Manifest V3 extension with plain HTML, CSS, and
   JavaScript and no production build step.
-- [x] Limit permissions to temporary active-tab inspection plus the exact LAN
+- [x] Limit permissions to temporary active-tab inspection plus the configured
   tracker host.
 - [x] Implement semantic extraction for company, role title, canonical job
   link, source, location, company size, minimum experience, salary,
@@ -35,19 +35,20 @@ reference. It was not treated as an instruction source.
 - [x] Omit the soon-to-be-removed currency field from the popup and create
   payload.
 - [x] Post the reviewed payload to
-  `POST http://192.168.0.151/api/applications`.
-- [x] Render readable FastAPI validation, timeout, and LAN connection errors.
+  `POST {TRACKER_ORIGIN}/api/applications`.
+- [x] Render readable FastAPI validation, timeout, and tracker connection
+  errors.
 - [x] Disable duplicate clicks while creating and show a link to the created
   tracker record on success.
 - [x] Add fixture-based extractor tests plus payload and mocked API tests.
-- [x] Verify the extractor read-only against all five supplied postings or
+- [x] Verify the extractor read-only against five representative postings or
   their canonical detail URLs.
 - [x] Document installation, use, troubleshooting, development, and security
   boundaries.
-- [ ] Load the unpacked extension in the user's Chrome profile and inspect the
-  popup visually.
-- [ ] With the user choosing the posting, perform one live create smoke test
-  against the LAN tracker and verify the resulting detail page.
+- [ ] Load the unpacked extension in a maintainer's Chrome profile and inspect
+  the popup visually.
+- [ ] With a maintainer-selected posting, perform one live create smoke test
+  against a configured tracker and verify the resulting detail page.
 
 ## Architecture
 
@@ -59,19 +60,19 @@ reference. It was not treated as an instruction source.
    existing create schema and sends the JSON request.
 6. The successful API response supplies the new record ID for the tracker link.
 
-The frontend and backend repositories are unchanged. Chrome extension pages
-with a matching `host_permissions` entry can make the LAN request directly, so
-no additional tracker CORS origin is expected to be necessary.
+The original frontend and backend repositories were unchanged. Chrome
+extension pages with a matching `host_permissions` entry can make the tracker
+request directly, so no additional tracker CORS origin is expected to be
+necessary.
 
 ## Deliberate MVP boundaries
 
-- The tracker address is fixed because the server has a reserved LAN address.
+- The tracker address is configured in source; there is no options page yet.
 - Duplicate-click prevention is local to one popup session. Server-side exact
   job-link duplicate detection is a possible later hardening step.
 - Wellfound markup can change. Semantic anchors and automated fixtures reduce
   this risk but cannot eliminate it.
-- There is no Chrome Web Store packaging yet; this is a personal unpacked
-  extension.
+- There is no Chrome Web Store packaging yet; this is an unpacked extension.
 - A custom toolbar icon is cosmetic and is not part of the functional MVP.
 
 ## Acceptance criteria

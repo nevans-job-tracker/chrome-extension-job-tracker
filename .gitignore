@@ -1,3 +1,4 @@
 node_modules/
 coverage/
 *.log
+LOCAL_CONTEXT.md
