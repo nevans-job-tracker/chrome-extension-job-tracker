@@ -109,7 +109,7 @@ describe("multi-site adapters", () => {
     });
   });
 
-  it("leaves hourly Dice pay blank and warns", () => {
+  it("keeps hourly Dice pay and records the period (KAN-52)", () => {
     document.body.innerHTML = "<h1>Automation Engineer</h1>";
     jsonLd({
       "@type": "JobPosting",
@@ -123,8 +123,55 @@ describe("multi-site adapters", () => {
       document,
       url: "https://www.dice.com/job-detail/be7caab2-4852-44bc-8f41-d1a40bde0ba8",
     });
+    // This used to assert the opposite. The tracker had one pair of salary
+    // columns and no way to say what they measured, so a correctly parsed
+    // hourly rate was thrown away with a warning. KAN-50 added pay_period.
+    expect(result.data.salary_min).toBe(60);
+    expect(result.data.salary_max).toBe(70);
+    expect(result.data.pay_period).toBe("hourly");
+    // finalizeResult still warns about genuinely absent optional fields; what
+    // must be gone is the pay warning.
+    expect(result.warnings.join(" ")).not.toContain("cannot store");
+    expect(result.warnings.join(" ")).not.toContain("Non-annual");
+  });
+
+  it("still refuses a period the tracker cannot store", () => {
+    // A day rate has no home in the enum, so it is still discarded — and the
+    // warning now means that specifically rather than "not annual".
+    document.body.innerHTML = "<h1>Automation Engineer</h1>";
+    jsonLd({
+      "@type": "JobPosting",
+      identifier: { value: "be7caab2-4852-44bc-8f41-d1a40bde0ba8" },
+      title: "Automation Engineer",
+      hiringOrganization: { name: "Example Staffing" },
+      baseSalary: { value: { minValue: 500, maxValue: 600, unitText: "DAY" } },
+      description: "<p>Build test automation.</p>",
+    });
+    const result = scrapeDiceJob({
+      document,
+      url: "https://www.dice.com/job-detail/be7caab2-4852-44bc-8f41-d1a40bde0ba8",
+    });
     expect(result.data.salary_min).toBeNull();
-    expect(result.warnings.join(" ")).toContain("Non-annual pay");
+    expect(result.warnings.join(" ")).toContain("cannot store");
+  });
+
+  it("maps schema.org employmentType onto the tracker enum", () => {
+    document.body.innerHTML = "<h1>Automation Engineer</h1>";
+    jsonLd({
+      "@type": "JobPosting",
+      identifier: { value: "be7caab2-4852-44bc-8f41-d1a40bde0ba8" },
+      title: "Automation Engineer",
+      hiringOrganization: { name: "Example Staffing" },
+      employmentType: "CONTRACTOR",
+      description: "<p>Commitment: 10-40 hrs/week.</p>",
+    });
+    const result = scrapeDiceJob({
+      document,
+      url: "https://www.dice.com/job-detail/be7caab2-4852-44bc-8f41-d1a40bde0ba8",
+    });
+    expect(result.data.employment_type).toBe("contract");
+    expect(result.data.hours_per_week_min).toBe(10);
+    expect(result.data.hours_per_week_max).toBe(40);
   });
 
   it("rejects Dice structured data for a different job UUID", () => {

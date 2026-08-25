@@ -71,6 +71,30 @@
           </label>
         </div>
 
+        <div class="field-grid">
+          <label>
+            <span>Employment type</span>
+            <select name="employment_type">
+              <option value="">Not stated</option>
+              <option value="full_time">Full Time</option>
+              <option value="part_time">Part Time</option>
+              <option value="contract">Contract</option>
+              <!-- schema.org has no equivalent, so this is never scraped;
+                   it is here so it can be set by hand before saving. -->
+              <option value="contract_to_hire">Contract-to-Hire</option>
+              <option value="volunteer">Volunteer</option>
+            </select>
+          </label>
+          <label>
+            <span>Hours/week min</span>
+            <input name="hours_per_week_min" type="number" min="0" />
+          </label>
+          <label>
+            <span>Hours/week max</span>
+            <input name="hours_per_week_max" type="number" min="0" />
+          </label>
+        </div>
+
         <div class="field-grid tracking-grid">
           <label>
             <span>Salary min</span>
@@ -79,6 +103,13 @@
           <label>
             <span>Salary max</span>
             <input name="salary_max" type="number" step="any" />
+          </label>
+          <label>
+            <span>Pay period</span>
+            <select name="pay_period">
+              <option value="annual" selected>Annual salary</option>
+              <option value="hourly">Hourly rate</option>
+            </select>
           </label>
           <label>
             <span>Tracking status</span>

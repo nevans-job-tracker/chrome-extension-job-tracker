@@ -3,8 +3,10 @@ import {
   formatJobLocation,
   htmlToPlainText,
   normalizeText,
-  parseAnnualSalaryText,
+  employmentTypeFrom,
+  parseSalaryText,
   parseMinimumExperience,
+  parseWeeklyHours,
   parseStructuredSalary,
   selectMatchingJobPosting,
 } from "../extraction/shared.js";
@@ -16,7 +18,7 @@ export function scrapeIndeedJob({ document: doc = document, url = location.href 
   const description = posting?.description
     ? htmlToPlainText(posting.description, doc)
     : normalizeText(doc.querySelector("#jobDescriptionText")?.innerText || doc.querySelector("#jobDescriptionText")?.textContent);
-  const visibleSalary = parseAnnualSalaryText(
+  const visibleSalary = parseSalaryText(
     doc.querySelector("#salaryInfoAndJobType")?.textContent || ""
   );
   const salary = visibleSalary || parseStructuredSalary(posting?.baseSalary);
@@ -33,8 +35,11 @@ export function scrapeIndeedJob({ document: doc = document, url = location.href 
       years_experience_min: parseMinimumExperience(description),
       salary_min: salary?.salary_min ?? null,
       salary_max: salary?.salary_max ?? null,
+      pay_period: salary?.pay_period ?? null,
+      employment_type: employmentTypeFrom(posting?.employmentType),
+      ...parseWeeklyHours(description),
       job_description: description,
     },
-    warnings: salary?.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : [],
+    warnings: salary?.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : [],
   });
 }

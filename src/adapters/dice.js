@@ -3,8 +3,10 @@ import {
   formatJobLocation,
   htmlToPlainText,
   normalizeText,
-  parseAnnualSalaryText,
+  employmentTypeFrom,
+  parseSalaryText,
   parseMinimumExperience,
+  parseWeeklyHours,
   parseStructuredSalary,
   selectMatchingJobPosting,
 } from "../extraction/shared.js";
@@ -21,7 +23,7 @@ export function scrapeDiceJob({ document: doc = document, url = location.href } 
     if (/^(?:BODY|MAIN)$/.test(headerAncestor.tagName)) break;
     const headerText = normalizeText(headerAncestor.textContent);
     if (headerText.length > 2500) break;
-    visibleSalary = parseAnnualSalaryText(headerText);
+    visibleSalary = parseSalaryText(headerText);
     if (visibleSalary) break;
     headerAncestor = headerAncestor.parentElement;
   }
@@ -32,8 +34,8 @@ export function scrapeDiceJob({ document: doc = document, url = location.href } 
   if (/job (?:is )?no longer available|position (?:is )?no longer available|job has expired/i.test(bodyStart)) {
     warnings.push("This Dice posting appears to be unavailable; verify the extracted details before saving.");
   }
-  if (salary?.non_annual) {
-    warnings.push(`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`);
+  if (salary?.unsupported_period) {
+    warnings.push(`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`);
   }
 
   return finalizeResult({
@@ -48,6 +50,9 @@ export function scrapeDiceJob({ document: doc = document, url = location.href } 
       years_experience_min: parseMinimumExperience(description),
       salary_min: salary?.salary_min ?? null,
       salary_max: salary?.salary_max ?? null,
+      pay_period: salary?.pay_period ?? null,
+      employment_type: employmentTypeFrom(posting?.employmentType),
+      ...parseWeeklyHours(description),
       job_description: description,
     },
     warnings,

@@ -29,6 +29,10 @@ describe("buildApplicationPayload", () => {
       status: "applied",
       salary_min: null,
       salary_max: 150000,
+      pay_period: "annual",
+      employment_type: null,
+      hours_per_week_min: null,
+      hours_per_week_max: null,
       date_applied: "2026-08-21",
       notes: null,
       next_action: null,
@@ -61,6 +65,39 @@ describe("buildApplicationPayload", () => {
     expect(payload.status).toBe("interested");
     expect(payload.date_applied).toBeNull();
     expect(payload.next_action).toBe("Apply");
+  });
+});
+
+describe("the fields KAN-50 and KAN-51 added", () => {
+  it("carries an hourly period through", () => {
+    const payload = buildApplicationPayload({
+      ...values, pay_period: "hourly", salary_min: "60", salary_max: "120",
+    });
+    expect(payload.pay_period).toBe("hourly");
+    expect(payload.salary_min).toBe(60);
+  });
+
+  it("falls back to annual rather than sending null", () => {
+    // pay_period is NOT NULL on the tracker with an annual default, so a null
+    // would be rejected where an absent period simply means "not stated".
+    expect(buildApplicationPayload({ ...values, pay_period: null }).pay_period)
+      .toBe("annual");
+    expect(buildApplicationPayload({ ...values, pay_period: undefined }).pay_period)
+      .toBe("annual");
+  });
+
+  it("sends a blank employment type as null, not an empty string", () => {
+    // Blank means "not recorded" on the tracker; "" would fail enum validation.
+    expect(buildApplicationPayload({ ...values, employment_type: "" }).employment_type)
+      .toBeNull();
+  });
+
+  it("carries the weekly hours range as numbers", () => {
+    const payload = buildApplicationPayload({
+      ...values, hours_per_week_min: "10", hours_per_week_max: "40",
+    });
+    expect(payload.hours_per_week_min).toBe(10);
+    expect(payload.hours_per_week_max).toBe(40);
   });
 });
 

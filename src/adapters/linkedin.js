@@ -2,8 +2,10 @@ import {
   finalizeResult,
   firstText,
   normalizeText,
-  parseAnnualSalaryText,
+  employmentTypeFrom,
+  parseSalaryText,
   parseMinimumExperience,
+  parseWeeklyHours,
   textAfterHeading,
 } from "../extraction/shared.js";
 
@@ -36,7 +38,7 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
   const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
   const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
   const topText = normalizeText(topCard?.textContent).slice(0, 3000);
-  const salary = parseAnnualSalaryText(topText) || parseAnnualSalaryText(description);
+  const salary = parseSalaryText(topText) || parseSalaryText(description);
   let locationText = firstText(doc, [
     ".job-details-jobs-unified-top-card__primary-description-container",
     ".jobs-unified-top-card__bullet",
@@ -50,6 +52,17 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
   if (remoteBadge && !new RegExp(remoteBadge, "i").test(locationText)) {
     locationText = locationText ? `${remoteBadge} (${locationText})` : remoteBadge;
   }
+
+  // LinkedIn is the one adapter that reads the DOM rather than JSON-LD, so
+  // there is no `employmentType` to map. The top card carries it as a discrete
+  // badge, matched exactly — the same approach as remoteBadge above.
+  //
+  // Exact match matters here more than it does for Remote/Hybrid: "contract"
+  // is a common word in a job description ("contract testing", "under
+  // contract"), so scanning prose for it would mislabel roles regularly.
+  const employmentBadge = [...(topCard || doc).querySelectorAll("button, span, li")]
+    .map((element) => normalizeText(element.textContent))
+    .find((text) => /^(full[- ]?time|part[- ]?time|contract|temporary|volunteer)$/i.test(text));
 
   if (!description) {
     return {
@@ -70,8 +83,11 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
       years_experience_min: parseMinimumExperience(description),
       salary_min: salary?.salary_min ?? null,
       salary_max: salary?.salary_max ?? null,
+      pay_period: salary?.pay_period ?? null,
+      employment_type: employmentTypeFrom(employmentBadge),
+      ...parseWeeklyHours(description),
       job_description: description,
     },
-    warnings: salary?.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : [],
+    warnings: salary?.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : [],
   });
 }

@@ -440,40 +440,112 @@
     if (/m/i.test(suffix)) return number * 1e6;
     return number;
   };
-  function parseAnnualSalaryText(value) {
+  var UNSUPPORTED = { salary_min: null, salary_max: null, pay_period: null };
+  var PERIOD_AFTER = /^\s*(?:\/|per\s+|an?\s+|each\s+)?(hourly|hours|hour|hrs|hr|daily|days|day|weekly|weeks|week|monthly|months|month|annually|annual|yearly|years|year|yr)/i;
+  function periodWordIn(tail) {
+    const match = PERIOD_AFTER.exec(tail);
+    if (!match) return "";
+    const next = tail[match[0].length];
+    if (next && /[a-z]/.test(next)) return "";
+    return match[1].toLowerCase();
+  }
+  var PERIOD_ANYWHERE = /\b(?:hourly|per\s+hour|an\s+hour|\/\s*hour|\/\s*hr)\b|\b(?:annual(?:ly)?|per\s+year|a\s+year|\/\s*yr|\/\s*year)\b/i;
+  function periodFrom(text, afterIndex) {
+    const near = periodWordIn(text.slice(afterIndex, afterIndex + 24));
+    const word = near || PERIOD_ANYWHERE.exec(text)?.[0]?.toLowerCase().replace(/[\s/]+/g, "") || "";
+    if (!word) return "";
+    if (/hour|hr/.test(word)) return "hourly";
+    if (/year|yr|annual/.test(word)) return "annual";
+    return "unsupported";
+  }
+  function parseSalaryText(value) {
     const text = normalizeText(value);
-    const period = /(?:per|a|\/)?\s*(hour|hr|day|daily|year|yr|annual(?:ly)?)/i.exec(text)?.[1]?.toLowerCase() || "";
     const range = /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)\s*(?:[-–—]|to)\s*(?:US\s*)?\$?\s*([\d,.]+)\s*([km]?)/i.exec(text);
-    if (!range) return null;
-    if (/hour|hr|day|daily/.test(period)) {
-      return { salary_min: null, salary_max: null, non_annual: range[0] + (period ? ` ${period}` : "") };
+    const single = range ? null : /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)/i.exec(text);
+    const match = range || single;
+    if (!match) return null;
+    const period = periodFrom(text, match.index + match[0].length);
+    if (period === "unsupported") {
+      const unit = periodWordIn(text.slice(match.index + match[0].length, match.index + match[0].length + 24));
+      return {
+        ...UNSUPPORTED,
+        unsupported_period: normalizeText(`${match[0]} ${unit}`.trim())
+      };
     }
-    if (!/year|yr|annual/.test(period) && !/[km]/i.test(`${range[2]}${range[4]}`)) return null;
+    if (range) {
+      if (!period && !/[km]/i.test(`${range[2]}${range[4]}`)) return null;
+      return {
+        salary_min: salaryNumber(range[1], range[2] || range[4]),
+        salary_max: salaryNumber(range[3], range[4] || range[2]),
+        pay_period: period || "annual",
+        unsupported_period: null
+      };
+    }
+    if (!period && !/[km]/i.test(single[2])) return null;
+    const amount = salaryNumber(single[1], single[2]);
     return {
-      salary_min: salaryNumber(range[1], range[2] || range[4]),
-      salary_max: salaryNumber(range[3], range[4] || range[2]),
-      non_annual: null
+      salary_min: amount,
+      salary_max: amount,
+      pay_period: period || "annual",
+      unsupported_period: null
     };
   }
   function parseStructuredSalary(baseSalary) {
-    if (!baseSalary) return { salary_min: null, salary_max: null, non_annual: null };
+    if (!baseSalary) return { ...UNSUPPORTED, unsupported_period: null };
     const value = baseSalary.value ?? baseSalary;
     const unit = normalizeText(value?.unitText || baseSalary.unitText).toUpperCase();
     const minimum = value?.minValue ?? baseSalary.minValue;
     const maximum = value?.maxValue ?? baseSalary.maxValue;
     const scalar = typeof value === "number" || typeof value === "string" ? value : null;
-    if (/HOUR|DAY/.test(unit)) {
-      const range = minimum != null || maximum != null ? `${minimum ?? "?"}\u2013${maximum ?? "?"} ${unit}` : `${scalar} ${unit}`;
-      return { salary_min: null, salary_max: null, non_annual: normalizeText(range) };
+    if (unit && !/HOUR|YEAR|ANNUAL/.test(unit)) {
+      const shown = minimum != null || maximum != null ? `${minimum ?? "?"}\u2013${maximum ?? "?"} ${unit}` : `${scalar} ${unit}`;
+      return { ...UNSUPPORTED, unsupported_period: normalizeText(shown) };
     }
-    if (unit && !/YEAR|ANNUAL/.test(unit)) {
-      return { salary_min: null, salary_max: null, non_annual: null };
-    }
+    const low = minimum != null ? salaryNumber(minimum) : scalar != null ? salaryNumber(scalar) : null;
+    const high = maximum != null ? salaryNumber(maximum) : scalar != null ? salaryNumber(scalar) : null;
+    if (low === null && high === null) return { ...UNSUPPORTED, unsupported_period: null };
     return {
-      salary_min: minimum != null ? salaryNumber(minimum) : scalar != null ? salaryNumber(scalar) : null,
-      salary_max: maximum != null ? salaryNumber(maximum) : scalar != null ? salaryNumber(scalar) : null,
-      non_annual: null
+      salary_min: low,
+      salary_max: high,
+      pay_period: /HOUR/.test(unit) ? "hourly" : "annual",
+      unsupported_period: null
     };
+  }
+  var EMPLOYMENT_TYPES = {
+    FULL_TIME: "full_time",
+    FULLTIME: "full_time",
+    PART_TIME: "part_time",
+    PARTTIME: "part_time",
+    CONTRACTOR: "contract",
+    CONTRACT: "contract",
+    TEMPORARY: "contract",
+    VOLUNTEER: "volunteer"
+  };
+  function employmentTypeFrom(value) {
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) {
+      const key = normalizeText(item).toUpperCase().replace(/[\s-]+/g, "_");
+      if (EMPLOYMENT_TYPES[key]) return EMPLOYMENT_TYPES[key];
+    }
+    return null;
+  }
+  var HOURS_RANGE = /(\d{1,3})\s*(?:[-–—]|to)\s*(\d{1,3})\s*(?:hours?|hrs?)\s*(?:per\s*|a\s*|\/)\s*(?:week|wk)/i;
+  var HOURS_SINGLE = /(\d{1,3})\s*\+?\s*(?:hours?|hrs?)\s*(?:per\s*|a\s*|\/)\s*(?:week|wk)/i;
+  function parseWeeklyHours(value) {
+    const text = normalizeText(value);
+    const range = HOURS_RANGE.exec(text);
+    if (range) {
+      return {
+        hours_per_week_min: Number(range[1]),
+        hours_per_week_max: Number(range[2])
+      };
+    }
+    const single = HOURS_SINGLE.exec(text);
+    if (single) {
+      const hours = Number(single[1]);
+      return { hours_per_week_min: hours, hours_per_week_max: hours };
+    }
+    return { hours_per_week_min: null, hours_per_week_max: null };
   }
   function parseMinimumExperience(value) {
     const text = normalizeText(value);
@@ -528,7 +600,7 @@
     const visibleHeader = normalizeText(doc.querySelector("main")?.textContent || doc.body.textContent).slice(0, 3500);
     const visibleWorkMode = [...doc.querySelectorAll("main *")].filter((element) => element.children.length === 0).map((element) => normalizeText(element.textContent)).find((text) => /^(?:remote|hybrid|on-site)(?:\s+or\s+(?:remote|hybrid|on-site))?$/i.test(text));
     const salary = parseStructuredSalary(posting?.baseSalary);
-    const visibleSalary = parseAnnualSalaryText(visibleHeader);
+    const visibleSalary = parseSalaryText(visibleHeader);
     if (visibleSalary && salary.salary_min === null) Object.assign(salary, visibleSalary);
     return finalizeResult({
       siteLabel: "Built In",
@@ -542,9 +614,12 @@
         years_experience_min: parseMinimumExperience(description),
         salary_min: salary.salary_min,
         salary_max: salary.salary_max,
+        pay_period: salary.pay_period,
+        employment_type: employmentTypeFrom(posting?.employmentType),
+        ...parseWeeklyHours(description),
         job_description: description
       },
-      warnings: salary.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : []
+      warnings: salary.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : []
     });
   }
 
@@ -561,7 +636,7 @@
       if (/^(?:BODY|MAIN)$/.test(headerAncestor.tagName)) break;
       const headerText = normalizeText(headerAncestor.textContent);
       if (headerText.length > 2500) break;
-      visibleSalary = parseAnnualSalaryText(headerText);
+      visibleSalary = parseSalaryText(headerText);
       if (visibleSalary) break;
       headerAncestor = headerAncestor.parentElement;
     }
@@ -572,8 +647,8 @@
     if (/job (?:is )?no longer available|position (?:is )?no longer available|job has expired/i.test(bodyStart)) {
       warnings.push("This Dice posting appears to be unavailable; verify the extracted details before saving.");
     }
-    if (salary?.non_annual) {
-      warnings.push(`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`);
+    if (salary?.unsupported_period) {
+      warnings.push(`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`);
     }
     return finalizeResult({
       siteLabel: "Dice",
@@ -587,6 +662,9 @@
         years_experience_min: parseMinimumExperience(description),
         salary_min: salary?.salary_min ?? null,
         salary_max: salary?.salary_max ?? null,
+        pay_period: salary?.pay_period ?? null,
+        employment_type: employmentTypeFrom(posting?.employmentType),
+        ...parseWeeklyHours(description),
         job_description: description
       },
       warnings
@@ -599,7 +677,7 @@
     const id = parsed.searchParams.get("jk");
     const posting = selectMatchingJobPosting(doc, id);
     const description = posting?.description ? htmlToPlainText(posting.description, doc) : normalizeText(doc.querySelector("#jobDescriptionText")?.innerText || doc.querySelector("#jobDescriptionText")?.textContent);
-    const visibleSalary = parseAnnualSalaryText(
+    const visibleSalary = parseSalaryText(
       doc.querySelector("#salaryInfoAndJobType")?.textContent || ""
     );
     const salary = visibleSalary || parseStructuredSalary(posting?.baseSalary);
@@ -615,9 +693,12 @@
         years_experience_min: parseMinimumExperience(description),
         salary_min: salary?.salary_min ?? null,
         salary_max: salary?.salary_max ?? null,
+        pay_period: salary?.pay_period ?? null,
+        employment_type: employmentTypeFrom(posting?.employmentType),
+        ...parseWeeklyHours(description),
         job_description: description
       },
-      warnings: salary?.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : []
+      warnings: salary?.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : []
     });
   }
 
@@ -650,7 +731,7 @@
     const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
     const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
     const topText = normalizeText(topCard?.textContent).slice(0, 3e3);
-    const salary = parseAnnualSalaryText(topText) || parseAnnualSalaryText(description);
+    const salary = parseSalaryText(topText) || parseSalaryText(description);
     let locationText = firstText(doc, [
       ".job-details-jobs-unified-top-card__primary-description-container",
       ".jobs-unified-top-card__bullet",
@@ -662,6 +743,7 @@
     if (remoteBadge && !new RegExp(remoteBadge, "i").test(locationText)) {
       locationText = locationText ? `${remoteBadge} (${locationText})` : remoteBadge;
     }
+    const employmentBadge = [...(topCard || doc).querySelectorAll("button, span, li")].map((element) => normalizeText(element.textContent)).find((text) => /^(full[- ]?time|part[- ]?time|contract|temporary|volunteer)$/i.test(text));
     if (!description) {
       return {
         ok: false,
@@ -680,9 +762,12 @@
         years_experience_min: parseMinimumExperience(description),
         salary_min: salary?.salary_min ?? null,
         salary_max: salary?.salary_max ?? null,
+        pay_period: salary?.pay_period ?? null,
+        employment_type: employmentTypeFrom(employmentBadge),
+        ...parseWeeklyHours(description),
         job_description: description
       },
-      warnings: salary?.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : []
+      warnings: salary?.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : []
     });
   }
 

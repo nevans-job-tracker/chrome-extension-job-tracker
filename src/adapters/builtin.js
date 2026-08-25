@@ -5,8 +5,10 @@ import {
   formatJobLocation,
   htmlToPlainText,
   normalizeText,
-  parseAnnualSalaryText,
+  employmentTypeFrom,
+  parseSalaryText,
   parseMinimumExperience,
+  parseWeeklyHours,
   parseStructuredSalary,
   selectMatchingJobPosting,
 } from "../extraction/shared.js";
@@ -26,7 +28,7 @@ export function scrapeBuiltInJob({ document: doc = document, url = location.href
     .map((element) => normalizeText(element.textContent))
     .find((text) => /^(?:remote|hybrid|on-site)(?:\s+or\s+(?:remote|hybrid|on-site))?$/i.test(text));
   const salary = parseStructuredSalary(posting?.baseSalary);
-  const visibleSalary = parseAnnualSalaryText(visibleHeader);
+  const visibleSalary = parseSalaryText(visibleHeader);
   if (visibleSalary && salary.salary_min === null) Object.assign(salary, visibleSalary);
 
   return finalizeResult({
@@ -41,8 +43,11 @@ export function scrapeBuiltInJob({ document: doc = document, url = location.href
       years_experience_min: parseMinimumExperience(description),
       salary_min: salary.salary_min,
       salary_max: salary.salary_max,
+      pay_period: salary.pay_period,
+      employment_type: employmentTypeFrom(posting?.employmentType),
+      ...parseWeeklyHours(description),
       job_description: description,
     },
-    warnings: salary.non_annual ? [`Non-annual pay was found (${salary.non_annual}); salary fields were left blank.`] : [],
+    warnings: salary.unsupported_period ? [`Pay was quoted as ${salary.unsupported_period}, a period the tracker cannot store; the pay fields were left blank.`] : [],
   });
 }
