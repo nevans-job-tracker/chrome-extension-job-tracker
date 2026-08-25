@@ -1,5 +1,5 @@
 {
-  "name": "chrome-extension-wellfound",
+  "name": "chrome-extension-job-tracker",
   "version": "0.1.5",
   "private": true,
   "type": "module",
