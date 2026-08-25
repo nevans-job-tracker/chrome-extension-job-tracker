@@ -193,6 +193,98 @@ describe("scrapeWellfoundJob", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("accepts a signed-in job layout without an experience field", () => {
+    document.body.innerHTML = `
+      <header><h1>TigerData</h1><p>Help build the next great database company!</p></header>
+      <div class="job-layout">
+        <section class="job-description-column">
+          <h2>Senior Test Tooling Engineer at TigerData</h2>
+          <h3>Senior Test Tooling Engineer</h3>
+          <p>
+            Tiger Data is seeking a passionate Senior Test Tooling Engineer to
+            elevate our release infrastructure and processes across our core
+            products and build robust testing and benchmarking systems.
+          </p>
+          <h3>What You Will Be Responsible For In This Role:</h3>
+          <p>
+            Drive and evolve CI/CD infrastructure, own the end-to-end release
+            process, and design stress testing infrastructure from the ground up.
+          </p>
+        </section>
+        <aside>
+          <button>Save</button><button>Apply</button>
+          <div><span>Hires remotely in</span><span>United States</span></div>
+          <div><span>Job type</span><span>Full Time</span></div>
+          <div><span>Visa sponsorship</span><span>Not Available</span></div>
+          <div><span>Relocation</span><span>Not Allowed</span></div>
+        </aside>
+      </div>
+      <aside><div><span>Company size</span><span>51-200 people</span></div></aside>
+    `;
+
+    const result = scrapeWellfoundJob({
+      document,
+      url: "https://wellfound.com/jobs/4512693-senior-test-tooling-engineer",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({
+      company: "TigerData",
+      role_title: "Senior Test Tooling Engineer",
+      location: "Remote (United States)",
+      company_size: "mid_size",
+      years_experience_min: null,
+      salary_min: null,
+      salary_max: null,
+    });
+    expect(result.data.job_description).toContain("release infrastructure");
+    expect(result.warnings).toContain("Years of experience were not found.");
+  });
+
+  it("does not take a salary from an unrelated job card", () => {
+    document.body.innerHTML = `
+      <header><h1>EmpiRx Health</h1><p>Changing the face of healthcare</p></header>
+      <div class="job-layout">
+        <section class="job-description-column">
+          <h2>Staff Software Development Engineer in Test at EmpiRx Health</h2>
+          <h3>Staff Software Development Engineer in Test (Databricks)</h3>
+          <p>
+            EmpiRx Health is seeking a highly skilled and experienced Staff
+            Software Development Engineer in Test to provide technical leadership
+            for quality engineering and test automation across data platforms.
+          </p>
+          <h3>Required Qualifications &amp; Experience</h3>
+          <p>
+            Eight or more years of experience in quality engineering and test
+            automation, including technical leadership for other engineers.
+          </p>
+        </section>
+        <aside>
+          <button>Save</button><button>Apply</button>
+          <div><span>Hires remotely in</span><span>United States</span></div>
+          <div><span>Remote work policy</span><span>Remote only</span></div>
+          <div><span>Experience</span><span>8+ years</span></div>
+        </aside>
+      </div>
+      <aside><div><span>Company size</span><span>201-500 people</span></div></aside>
+      <section class="recommended-jobs">
+        <h2>Recommended jobs</h2>
+        <a href="/jobs/9999999-unrelated-role">Unrelated role $57k – $65k</a>
+      </section>
+    `;
+
+    const result = scrapeWellfoundJob({
+      document,
+      url:
+        "https://wellfound.com/jobs/4595086-staff-software-development-engineer-in-test",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data.salary_min).toBeNull();
+    expect(result.data.salary_max).toBeNull();
+    expect(result.warnings).toContain("Salary was not stated.");
+  });
+
   it("does not scrape the generic jobs landing page", () => {
     document.body.innerHTML = "<h1>Over 130k remote & local startup jobs</h1>";
 

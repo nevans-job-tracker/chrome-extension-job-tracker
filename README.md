@@ -56,8 +56,8 @@ is hosted.
 1. Open a Wellfound job's detail page.
 2. Click the extension button.
 3. Review the extracted values and correct any missing fields.
-4. Leave **Interested** selected to save no application date, or choose
-   **Applied** to use today's date.
+4. Leave **Interested** selected to save no application date and set the next
+   action to **Apply**, or choose **Applied** to use today's date.
 5. Click **Create application**.
 6. Use **Open in Job Tracker** to view the new record.
 

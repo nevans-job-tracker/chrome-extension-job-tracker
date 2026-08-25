@@ -1,6 +1,6 @@
 # Project context
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 This document preserves the technical decisions and integration contract
 needed to maintain the extension. Machine-specific paths and deployment values
@@ -34,7 +34,9 @@ Payload fields used by the extension:
 | `status` | `applied` or `interested` |
 | `salary_min`, `salary_max` | Nullable numbers; min may not exceed max |
 | `date_applied` | Date string or null |
-| `notes`, `next_action`, `next_action_date` | Created as null |
+| `notes` | Created as null |
+| `next_action` | `Apply` for Interested records; otherwise null |
+| `next_action_date` | Created as null |
 | `job_description` | Nullable plain text |
 
 Company-size mapping:
@@ -60,13 +62,18 @@ protect the tracker according to their own network and security requirements.
 - Scraping uses semantic headings, labels, links, and text patterns rather than
   Wellfound's generated CSS class names.
 - Public job pages and signed-in company-profile job layouts are supported.
+- Signed-in layouts are recognized from multiple job-detail labels rather than
+  requiring an experience field, because some postings omit experience.
 - Labeled sidebar values may share a container with the label or appear in the
   nearest following container. Both forms are supported.
 - Descriptions are stored as plain paragraphs and `- ` list items.
 - Salary parsing supports common currency symbols or codes plus `k`, `m`, and
   Indian `L` suffixes, although currency itself is not sent to the tracker.
-- Interested is the default and sends a null application date. Choosing
-  Applied fills today's local date.
+- Salary parsing is limited to the current posting's summary or content
+  container so recommended jobs elsewhere on the page cannot supply a range.
+- Interested is the default, sends a null application date, and sets the next
+  action to `Apply`. Choosing Applied fills today's local date and leaves the
+  next action null.
 - Missing optional fields generate warnings rather than blocking creation.
 
 ## Supported URL forms
@@ -103,7 +110,7 @@ Automated tests cover:
 - Applied/Interested payload behavior
 - successful API requests, validation errors, and connection failures
 
-Latest result: 3 test files, 15 tests, all passing.
+Latest result: 3 test files, 17 tests, all passing.
 
 Run `npm install` followed by `npm test` for normal verification.
 

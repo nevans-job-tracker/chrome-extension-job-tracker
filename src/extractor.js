@@ -183,12 +183,22 @@ export function scrapeWellfoundJob(options = {}) {
 
   function embeddedJobHeading(root) {
     const applyControls = [...root.querySelectorAll("button, a")].filter(
-      (element) => normalize(element.textContent).toLowerCase() === "apply"
+      (element) => /^apply(?: now)?$/i.test(normalize(element.textContent))
     );
-    const hasExperienceLabel = [...root.querySelectorAll("*")].some(
-      (element) => normalize(element.textContent).toLowerCase() === "experience"
+    const jobDetailLabels = new Set([
+      "hires remotely in",
+      "remote work policy",
+      "job type",
+      "visa sponsorship",
+      "relocation",
+      "experience",
+    ]);
+    const presentDetailLabels = new Set(
+      [...root.querySelectorAll("*")]
+        .map((element) => normalize(element.textContent).toLowerCase())
+        .filter((text) => jobDetailLabels.has(text))
     );
-    if (!applyControls.length || !hasExperienceLabel) return null;
+    if (!applyControls.length || presentDetailLabels.size < 2) return null;
 
     const candidates = [...root.querySelectorAll("h1, h2, h3, h4")]
       .map((element) => {
@@ -215,9 +225,8 @@ export function scrapeWellfoundJob(options = {}) {
     return candidates.find((candidate) => candidate.nearbyApply) || candidates[0] || null;
   }
 
-  function embeddedDescription(root, titleHeading) {
+  function embeddedContentRoot(root, titleHeading) {
     let container = titleHeading.parentElement;
-    let descriptionRoot = null;
 
     for (let depth = 0; container && container !== root && depth < 8; depth += 1) {
       const blocks = [...container.querySelectorAll("h2, h3, h4, h5, p, li")].filter(
@@ -228,12 +237,15 @@ export function scrapeWellfoundJob(options = {}) {
         0
       );
       if (blocks.length >= 2 && length >= 250) {
-        descriptionRoot = container;
-        break;
+        return container;
       }
       container = container.parentElement;
     }
 
+    return null;
+  }
+
+  function embeddedDescription(descriptionRoot, titleHeading) {
     if (!descriptionRoot) return "";
     const blocks = [...descriptionRoot.querySelectorAll("h2, h3, h4, h5, p, li")]
       .filter((element) => isAfter(element, titleHeading))
@@ -309,7 +321,18 @@ export function scrapeWellfoundJob(options = {}) {
     /(\d+(?:\.\d+)?)\+?\s+years?(?:\s+(?:of\s+)?exp)?/i
   );
   const yearsExperience = experienceMatch ? Math.floor(Number(experienceMatch[1])) : null;
-  const salary = parseSalary(metadata || normalize(jobRoot.textContent));
+  const embeddedContent = embeddedJob ? embeddedContentRoot(jobRoot, title) : null;
+  const postingSummary = aboutJob
+    ? [...jobRoot.querySelectorAll("*")]
+        .filter(
+          (element) =>
+            element.children.length === 0 && isBetween(element, title, aboutJob)
+        )
+        .map((element) => normalize(element.textContent))
+        .filter(Boolean)
+        .join(" ")
+    : normalize(embeddedContent?.textContent);
+  const salary = parseSalary(metadata || postingSummary);
 
   const metadataParts = metadata
     .split("|")
@@ -339,7 +362,7 @@ export function scrapeWellfoundJob(options = {}) {
   const sizeText = valueNearLabel(jobRoot, "Company Size");
   const description = aboutJob
     ? descriptionBetween(jobRoot, aboutJob, aboutCompany)
-    : embeddedDescription(jobRoot, title);
+    : embeddedDescription(embeddedContent, title);
   const canonicalUrl = canonicalJobUrl(pageUrl);
   const warnings = [];
 

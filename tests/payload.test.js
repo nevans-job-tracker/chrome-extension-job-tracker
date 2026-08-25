@@ -40,7 +40,7 @@ describe("buildApplicationPayload", () => {
     );
   });
 
-  it("clears the application date for interested jobs", () => {
+  it("clears the application date and sets Apply for interested jobs", () => {
     const payload = buildApplicationPayload({
       ...values,
       status: "interested",
@@ -49,6 +49,7 @@ describe("buildApplicationPayload", () => {
 
     expect(payload.status).toBe("interested");
     expect(payload.date_applied).toBeNull();
+    expect(payload.next_action).toBe("Apply");
   });
 
   it("defaults an omitted status to interested with no application date", () => {
@@ -59,6 +60,7 @@ describe("buildApplicationPayload", () => {
 
     expect(payload.status).toBe("interested");
     expect(payload.date_applied).toBeNull();
+    expect(payload.next_action).toBe("Apply");
   });
 });
 

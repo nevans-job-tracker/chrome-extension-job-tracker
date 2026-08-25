@@ -17,6 +17,8 @@ export function todayLocal(date = new Date()) {
 }
 
 export function buildApplicationPayload(values) {
+  const isApplied = values.status === "applied";
+
   return {
     company: String(values.company || "").trim(),
     role_title: String(values.role_title || "").trim(),
@@ -25,13 +27,12 @@ export function buildApplicationPayload(values) {
     location: nullableText(values.location),
     company_size: nullableText(values.company_size),
     years_experience_min: nullableNumber(values.years_experience_min),
-    status: values.status === "applied" ? "applied" : "interested",
+    status: isApplied ? "applied" : "interested",
     salary_min: nullableNumber(values.salary_min),
     salary_max: nullableNumber(values.salary_max),
-    date_applied:
-      values.status === "applied" ? nullableText(values.date_applied) : null,
+    date_applied: isApplied ? nullableText(values.date_applied) : null,
     notes: null,
-    next_action: null,
+    next_action: isApplied ? null : "Apply",
     next_action_date: null,
     job_description: nullableText(values.job_description),
   };

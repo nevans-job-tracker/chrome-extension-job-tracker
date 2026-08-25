@@ -26,10 +26,14 @@ reference. It was not treated as an instruction source.
   the job** section.
 - [x] Read company-size labels whose values are rendered in adjacent profile
   card containers.
+- [x] Accept signed-in job layouts that omit the experience field.
+- [x] Scope salary parsing to the current posting rather than unrelated job
+  recommendations elsewhere on the page.
 - [x] Provide a recovery link when a query-style URL shows only Wellfound's
   generic jobs landing page.
 - [x] Build an editable review popup that defaults to Interested/no-date and
   offers Applied/today as an explicit choice.
+- [x] Set the next action to Apply when an Interested record is created.
 - [x] Compact the normal popup into four-column rows so the create button is
   visible without scrolling.
 - [x] Omit the soon-to-be-removed currency field from the popup and create
@@ -82,7 +86,8 @@ necessary.
 - A rendered Wellfound posting populates required fields and all available
   optional fields.
 - Missing optional values remain blank/null and are disclosed as warnings.
-- Applied records carry the selected date; Interested records carry no date.
+- Applied records carry the selected date; Interested records carry no date
+  and set the next action to Apply.
 - The request matches the current FastAPI create schema.
 - API/network errors remain editable and retryable without losing extracted
   values.
