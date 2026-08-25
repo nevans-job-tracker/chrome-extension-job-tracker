@@ -1,8 +1,9 @@
-# Wellfound to Job Tracker
+# Job Posting to Job Tracker
 
-A Manifest V3 Chrome extension that extracts details from the Wellfound job
-currently on screen, lets you review the fields, and creates a record in a
-compatible self-hosted Job Tracker.
+A Manifest V3 Chrome extension that extracts details from the supported job
+posting currently on screen, lets you review the fields, and creates a record
+in a compatible self-hosted Job Tracker. Version 0.1.x supports Wellfound; the
+multi-site expansion is documented in [MULTI_SITE_PLAN.md](MULTI_SITE_PLAN.md).
 
 The extension uses plain HTML, CSS, and JavaScript. Chrome loads the repository
 directly, so there is no production build step.
@@ -45,7 +46,7 @@ request.
 3. Open `chrome://extensions` in Chrome.
 4. Turn on **Developer mode**.
 5. Click **Load unpacked** and select the cloned repository folder.
-6. Optionally pin **Wellfound to Job Tracker** from Chrome's Extensions menu.
+6. Optionally pin **Job Posting to Job Tracker** from Chrome's Extensions menu.
 
 Chrome may ask for permission to reach devices on the local network when the
 configured tracker uses a LAN address. Allow it if that is where your tracker

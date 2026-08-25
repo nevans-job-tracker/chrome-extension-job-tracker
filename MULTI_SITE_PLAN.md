@@ -726,8 +726,7 @@ reviewable warning or clear error, never silently substitute unrelated content.
 
 Open product/repository choices before implementation:
 
-1. Confirm the recommended visible product name: **Job Posting to Job Tracker**.
-2. Confirm the one-time options-page tracker configuration and exact-origin
+1. Confirm the one-time options-page tracker configuration and exact-origin
    runtime permission model. It is the cleanest way to remove the LAN address
    from tracked files while keeping the extension reusable.
 3. Confirm that the generated extractor bundle should be committed. This plan
@@ -739,6 +738,8 @@ Open product/repository choices before implementation:
 
 Confirmed project decisions:
 
+- **Product name (confirmed 2026-08-24):** the visible extension name is **Job
+  Posting to Job Tracker**.
 - **Repository identity (confirmed 2026-08-24):** the GitHub repository and local
   folder are named `chrome-extension-job-tracker`, and the npm package uses the
   same name.

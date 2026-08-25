@@ -1,10 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Wellfound to Job Tracker",
-  "version": "0.1.5",
-  "description": "Review a Wellfound job posting and save it to the LAN Job Tracker.",
+  "name": "Job Posting to Job Tracker",
+  "version": "0.1.6",
+  "description": "Review a job posting and save it to your Job Tracker.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
-    "default_title": "Save Wellfound job",
+    "default_title": "Save job to Job Tracker",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
     "default_popup": "popup.html"
   },
   "permissions": [
