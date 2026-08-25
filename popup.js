@@ -1,6 +1,6 @@
 import { createApplication, TRACKER_ORIGIN } from "./src/api.js";
-import { scrapeWellfoundJob } from "./src/extractor.js";
 import { buildApplicationPayload, todayLocal } from "./src/payload.js";
+import { identifySite, unsupportedPostingMessage } from "./src/sites/catalog.js";
 
 const form = document.querySelector("#application-form");
 const statusMessage = document.querySelector("#status-message");
@@ -49,13 +49,16 @@ function updateDateBehavior() {
 async function extractCurrentPosting() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https:\/\/(?:www\.)?wellfound\.com\//i.test(tab.url || "")) {
-      throw new Error("Open a Wellfound job posting before using this extension.");
+    if (!tab?.id || !identifySite(tab.url || "")) {
+      throw new Error(unsupportedPostingMessage());
     }
 
-    const [{ result }] = await chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: scrapeWellfoundJob,
+      files: ["dist/extract-current-job.js"],
+    });
+    const result = await chrome.tabs.sendMessage(tab.id, {
+      type: "EXTRACT_CURRENT_JOB",
     });
 
     if (!result?.ok) {

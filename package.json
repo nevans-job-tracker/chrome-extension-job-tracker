@@ -1,13 +1,15 @@
 {
   "name": "chrome-extension-job-tracker",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "esbuild src/content-script.js --bundle --format=iife --target=chrome120 --outfile=dist/extract-current-job.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "esbuild": "0.21.5",
     "jsdom": "30.0.1",
     "vitest": "2.1.9"
   }

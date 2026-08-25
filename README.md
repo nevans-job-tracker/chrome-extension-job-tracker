@@ -2,16 +2,17 @@
 
 A Manifest V3 Chrome extension that extracts details from the supported job
 posting currently on screen, lets you review the fields, and creates a record
-in a compatible self-hosted Job Tracker. Version 0.1.x supports Wellfound; the
-multi-site expansion is documented in [MULTI_SITE_PLAN.md](MULTI_SITE_PLAN.md).
+in a compatible self-hosted Job Tracker. Version 0.2.x supports Wellfound,
+LinkedIn Jobs, Indeed, Built In, and Dice. The expansion design is documented
+in [MULTI_SITE_PLAN.md](MULTI_SITE_PLAN.md).
 
-The extension uses plain HTML, CSS, and JavaScript. Chrome loads the repository
-directly, so there is no production build step.
+The extension uses plain HTML, CSS, and JavaScript. A generated content-script
+bundle is committed under `dist/`, so Chrome can load the repository directly.
 
 ## What it captures
 
 - Company and role title
-- Canonical Wellfound job link
+- Canonical job link and source site
 - Location and company size
 - Minimum experience
 - Salary range when stated
@@ -54,7 +55,8 @@ is hosted.
 
 ## Use it
 
-1. Open a Wellfound job's detail page.
+1. Open a job's full detail page on Wellfound, LinkedIn, Indeed, Built In, or
+   Dice.
 2. Click the extension button.
 3. Review the extracted values and correct any missing fields.
 4. Leave **Interested** selected to save no application date and set the next
@@ -85,19 +87,25 @@ request is running to prevent duplicate submissions.
 
 ### “The job details are not open”
 
-Use the recovery link in the popup or open the job title so Wellfound renders
-the complete posting.
+Use the recovery link in the popup or open the job title so the site renders
+the complete posting. LinkedIn must show the **About the job** content; an
+authentication shell is deliberately rejected.
 
 ### Fields are missing or incorrect
 
 Edit them in the popup before creating the record. If the same field fails on
-several jobs, Wellfound may have changed its page structure. Add a reduced HTML
-fixture under `tests/` before adjusting `src/extractor.js`.
+several jobs, that site may have changed its page structure. Add a reduced HTML
+fixture under `tests/` before adjusting its adapter under `src/adapters/`.
+
+Dice hourly or daily pay is retained in a warning but is not copied into the
+annual salary fields. Missing optional data stays blank. The extractors match
+the current posting before using structured data and do not read salaries from
+recommendation cards.
 
 ### Changes do not appear in Chrome
 
 Return to `chrome://extensions` and click the extension's reload button. Then
-refresh the Wellfound page before opening the extension again.
+refresh the job page before opening the extension again.
 
 ## Development
 
@@ -105,6 +113,7 @@ Install the pinned development dependencies and run the test suite:
 
 ```powershell
 npm install
+npm run build
 npm test
 ```
 
@@ -112,18 +121,23 @@ Project structure:
 
 - `manifest.json` — Manifest V3 declaration and permissions
 - `popup.html`, `popup.css`, `popup.js` — review and submission interface
-- `src/extractor.js` — self-contained Wellfound DOM extractor
+- `src/sites/catalog.js` — supported job-page URL detection
+- `src/adapters/` — per-site extractors and dispatcher
+- `src/extraction/` — shared structured-data and parsing helpers
+- `src/extractor.js` — existing Wellfound extractor
+- `src/content-script.js`, `dist/extract-current-job.js` — source and committed
+  browser bundle
 - `src/payload.js` — tracker payload conversion
 - `src/api.js` — Job Tracker API client
 - `tests/` — extractor, payload, and API tests
 
 ## Security and privacy
 
-- Wellfound access is temporary and begins only when the extension is clicked
+- Job-page access is temporary and begins only when the extension is clicked
   (`activeTab` plus `scripting`).
 - The persistent host permission is limited to the configured tracker origin.
-- Scraped text is assigned through form values or `textContent`; Wellfound HTML
-  is never inserted into the extension popup.
+- Scraped text is assigned through form values or `textContent`; page HTML is
+  never inserted into the extension popup.
 - No credentials, cookies, browsing history, analytics, or remote code are
   collected.
 

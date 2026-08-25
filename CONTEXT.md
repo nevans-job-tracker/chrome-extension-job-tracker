@@ -1,6 +1,6 @@
 # Project context
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 This document preserves the technical decisions and integration contract
 needed to maintain the extension. Machine-specific paths and deployment values
@@ -27,7 +27,7 @@ Payload fields used by the extension:
 | `company` | Required string |
 | `role_title` | Required string |
 | `job_link` | Nullable HTTP(S) URL |
-| `source` | Nullable free text; extension uses `Wellfound` |
+| `source` | Nullable free text; extension uses `Wellfound`, `LinkedIn`, `Indeed`, `Built In`, or `Dice` |
 | `location` | Nullable string |
 | `company_size` | Nullable enum |
 | `years_experience_min` | Nullable integer, minimum 0 |
@@ -41,7 +41,7 @@ Payload fields used by the extension:
 
 Company-size mapping:
 
-| Wellfound size | API value |
+| Employee count or band | API value |
 |---|---|
 | 1–10 | `seed` |
 | 11–50 | `early` |
@@ -55,12 +55,19 @@ protect the tracker according to their own network and security requirements.
 
 ## Extension decisions
 
-- Manifest V3 with no framework or production bundling.
-- `activeTab` plus `scripting` instead of permanent Wellfound host access.
+- Manifest V3 with no framework. A deterministic generated content-script
+  bundle is committed so an unpacked install does not require a local build.
+- `activeTab` plus `scripting` instead of permanent job-site host access.
 - A host permission limited to the configured tracker origin.
 - The popup performs the request; no service worker is needed.
-- Scraping uses semantic headings, labels, links, and text patterns rather than
-  Wellfound's generated CSS class names.
+- A site catalog validates the active URL before the content-script bundle is
+  injected, and an adapter dispatcher selects exactly one site extractor.
+- Indeed, Built In, and Dice prefer matching Schema.org `JobPosting` data.
+  LinkedIn uses its current detail card and description root. Wellfound retains
+  its semantic heading and label extraction.
+- Structured data is matched to the current job identifier where the site
+  exposes one. Recommendation cards and generated summaries cannot supply
+  salary or description fields.
 - Public job pages and signed-in company-profile job layouts are supported.
 - Signed-in layouts are recognized from multiple job-detail labels rather than
   requiring an experience field, because some postings omit experience.
@@ -81,6 +88,10 @@ protect the tracker according to their own network and security requirements.
 - Canonical posting: `https://wellfound.com/jobs/{id}-{slug}`
 - Search URL: `https://wellfound.com/jobs?job_listing_slug={id}-{slug}`
 - Signed-in company page containing `/jobs/{id}-{slug}`
+- LinkedIn direct job: `https://www.linkedin.com/jobs/view/{id}/`
+- Indeed direct job: `https://www.indeed.com/viewjob?jk={id}`
+- Built In direct job: `https://builtin.com/job/{slug}/{id}`
+- Dice direct job: `https://www.dice.com/job-detail/{uuid}`
 
 Query-style links may show a rendered details panel or only the generic jobs
 landing page. When details are unavailable, the extension derives a canonical
@@ -110,9 +121,11 @@ Automated tests cover:
 - Applied/Interested payload behavior
 - successful API requests, validation errors, and connection failures
 
-Latest result: 3 test files, 17 tests, all passing.
+The multi-site release adds catalog, structured-data, direct-layout,
+authentication-shell, non-annual salary, identity-mismatch, and unrelated-card
+regressions. Latest result: 5 test files, 30 tests, all passing.
 
-Run `npm install` followed by `npm test` for normal verification.
+Run `npm install`, `npm run build`, and `npm test` for normal verification.
 
 ## Maintainer notes
 

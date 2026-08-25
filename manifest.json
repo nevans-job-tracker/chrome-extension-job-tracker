@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Job Posting to Job Tracker",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Review a job posting and save it to your Job Tracker.",
   "icons": {
     "16": "icons/icon-16.png",
