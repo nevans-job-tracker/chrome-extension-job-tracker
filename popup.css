@@ -12,7 +12,10 @@
 }
 
 body {
-  width: 620px;
+  /* Chrome caps a popup at 800x600. Taking nearly all the width is what lets
+     the field grids stay on one line each; the height ceiling is why the
+     action bar below is sticky rather than merely last. */
+  width: 780px;
   min-height: 220px;
   margin: 0;
   background: #f4f6fa;
@@ -76,7 +79,30 @@ form {
 }
 
 .tracking-grid {
-  grid-template-columns: 0.8fr 0.8fr 1.25fr 1.05fr;
+  grid-template-columns: 0.8fr 0.8fr 1.1fr 1.25fr 1.05fr;
+}
+
+/* Employment type, hours min, hours max. Without this the grid falls back to
+   one column and the three fields take three full rows — which is what put
+   Create application below the fold (KAN-53). */
+.commitment-grid {
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+}
+
+/* Pinned, so the button stays reachable however tall the form grows. The 600px
+   popup ceiling is fixed and this form has grown twice; making the button
+   position structural means that stops being a recurring bug. */
+.form-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 4px -16px -14px;
+  padding: 10px 16px;
+  background: #f4f6fa;
+  border-top: 1px solid #d8dee9;
+}
+
+.form-actions button {
+  width: 100%;
 }
 
 label {

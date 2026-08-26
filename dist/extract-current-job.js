@@ -336,7 +336,7 @@
   }
 
   // src/extraction/shared.js
-  var normalizeText = (value) => String(value || "").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+  var normalizeText = (value) => String(value || "").replace(/\u00a0/g, " ").replace(/[\u200b-\u200d\u2060\u200e\u200f\ufeff]/g, "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
   function firstText(root, selectors) {
     for (const selector of selectors) {
       const text = normalizeText(root.querySelector(selector)?.textContent);
@@ -547,14 +547,26 @@
     }
     return { hours_per_week_min: null, hours_per_week_max: null };
   }
+  var QUALIFIER = "[^.;\\n]{0,40}?";
+  var EXPERIENCE_PATTERNS = [
+    // "minimum of 5 years", "at least 5 years", "requires 5+ years"
+    /(?:minimum|required|requires|at least)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*\+?\s*years?/i,
+    // "Experience: 5+ years of ..."
+    /experience\s*[:–—-]\s*(\d+(?:\.\d+)?)\s*\+?\s*years?/i,
+    // "3-5 years of QA experience"
+    new RegExp(
+      `(\\d+(?:\\.\\d+)?)\\s*(?:[-\u2013\u2014]|to)\\s*\\d+(?:\\.\\d+)?\\s*years?(?:\\s+of)?\\s*${QUALIFIER}\\bexperience`,
+      "i"
+    ),
+    // "5+ years of professional QA experience", "5+ years experience in QA"
+    new RegExp(
+      `(\\d+(?:\\.\\d+)?)\\s*\\+?\\s*years?(?:\\s+of)?\\s*${QUALIFIER}\\bexperience`,
+      "i"
+    )
+  ];
   function parseMinimumExperience(value) {
     const text = normalizeText(value);
-    const patterns = [
-      /(?:minimum|required|at least)\s+(?:of\s+)?(\d+(?:\.\d+)?)\+?\s+years?/i,
-      /(\d+(?:\.\d+)?)\+\s+years?(?:\s+of)?\s+(?:relevant\s+)?experience/i,
-      /(\d+(?:\.\d+)?)\s*(?:[-–—]|to)\s*\d+(?:\.\d+)?\s+years?(?:\s+of)?\s+(?:relevant\s+)?experience/i
-    ];
-    for (const pattern of patterns) {
+    for (const pattern of EXPERIENCE_PATTERNS) {
       const match = text.match(pattern);
       if (match) return Math.floor(Number(match[1]));
     }

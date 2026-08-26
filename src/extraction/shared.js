@@ -1,6 +1,13 @@
 export const normalizeText = (value) =>
   String(value || "")
     .replace(/\u00a0/g, " ")
+    // Zero-width characters \u2014 BOM, ZWSP, ZWNJ/ZWJ, word joiner, LTR/RTL marks.
+    // Job descriptions are pasted between editors and pick these up; two of
+    // them sit before the digit in "5+ years of professional QA Experience".
+    // They render as nothing, so text that looks identical fails to match for
+    // a reason invisible in a diff. Removed rather than spaced, since they
+    // occur *inside* words as often as between them.
+    .replace(/[\u200b-\u200d\u2060\u200e\u200f\ufeff]/g, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\s*\n\s*/g, "\n")
     .trim();
@@ -363,14 +370,46 @@ export function parseWeeklyHours(value) {
   return { hours_per_week_min: null, hours_per_week_max: null };
 }
 
+// Whatever sits between "years" and "experience" — "of professional", "of
+// QA/test engineering", "of Scrum and Agile". Bounded and non-greedy, and it
+// cannot cross a sentence boundary, so it stays a qualifier rather than
+// swallowing its way to an "experience" in the next paragraph.
+//
+// This replaces a hard-coded `(?:relevant\s+)?`, which was the one qualifier
+// somebody happened to hit. Seven of nine real postings state something else.
+const QUALIFIER = "[^.;\\n]{0,40}?";
+
+const EXPERIENCE_PATTERNS = [
+  // "minimum of 5 years", "at least 5 years", "requires 5+ years"
+  /(?:minimum|required|requires|at least)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*\+?\s*years?/i,
+  // "Experience: 5+ years of ..."
+  /experience\s*[:–—-]\s*(\d+(?:\.\d+)?)\s*\+?\s*years?/i,
+  // "3-5 years of QA experience"
+  new RegExp(
+    `(\\d+(?:\\.\\d+)?)\\s*(?:[-–—]|to)\\s*\\d+(?:\\.\\d+)?\\s*years?(?:\\s+of)?\\s*${QUALIFIER}\\bexperience`,
+    "i"
+  ),
+  // "5+ years of professional QA experience", "5+ years experience in QA"
+  new RegExp(
+    `(\\d+(?:\\.\\d+)?)\\s*\\+?\\s*years?(?:\\s+of)?\\s*${QUALIFIER}\\bexperience`,
+    "i"
+  ),
+];
+
+/**
+ * The minimum years of experience a posting asks for.
+ *
+ * **The first match wins, not the smallest.** A posting usually states a
+ * headline requirement and then smaller per-tool ones — "5+ years of QA
+ * experience" followed by "2+ years with Cypress". The column means the
+ * role's minimum, so taking the smallest would read 2 and be wrong.
+ *
+ * Patterns are ordered most explicit first, so "minimum of 5 years" is read as
+ * the requirement even where a looser phrase appears earlier in the text.
+ */
 export function parseMinimumExperience(value) {
   const text = normalizeText(value);
-  const patterns = [
-    /(?:minimum|required|at least)\s+(?:of\s+)?(\d+(?:\.\d+)?)\+?\s+years?/i,
-    /(\d+(?:\.\d+)?)\+\s+years?(?:\s+of)?\s+(?:relevant\s+)?experience/i,
-    /(\d+(?:\.\d+)?)\s*(?:[-–—]|to)\s*\d+(?:\.\d+)?\s+years?(?:\s+of)?\s+(?:relevant\s+)?experience/i,
-  ];
-  for (const pattern of patterns) {
+  for (const pattern of EXPERIENCE_PATTERNS) {
     const match = text.match(pattern);
     if (match) return Math.floor(Number(match[1]));
   }

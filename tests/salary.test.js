@@ -3,6 +3,7 @@ import {
   employmentTypeFrom,
   parseSalaryText,
   parseStructuredSalary,
+  parseMinimumExperience,
   parseWeeklyHours,
 } from "../src/extraction/shared.js";
 
@@ -147,5 +148,62 @@ describe("parseWeeklyHours (KAN-52)", () => {
     expect(parseWeeklyHours(text)).toEqual({
       hours_per_week_min: null, hours_per_week_max: null,
     });
+  });
+});
+
+describe("parseMinimumExperience (KAN-54)", () => {
+  it.each([
+    ["4+ years of professional experience in software QA", 4],
+    ["5+ years of software testing experience", 5],
+    ["5+ years of QA experience", 5],
+    ["5+ years experience in QA engineering", 5],
+    ["8+ years of QA/test engineering experience", 8],
+    ["5+ years of professional QA Experience", 5],
+    ["7+ years of experience in software quality engineering", 7],
+    ["5+ years of Scrum and Agile experience", 5],
+    [
+      "Experience: 5+ years of dedicated professional experience in software QA automation engineering",
+      5,
+    ],
+  ])("reads %s", (text, expected) => {
+    // All nine are real postings that reported "not found" before KAN-54. The
+    // old pattern allowed only a literal "relevant" between "years" and
+    // "experience"; every miss had some other qualifier there.
+    expect(parseMinimumExperience(text)).toBe(expected);
+  });
+
+  it.each([
+    ["3-5 years of QA experience", 3],
+    ["Minimum of 6 years in test automation", 6],
+    ["At least 10 years of experience", 10],
+    ["Requires 4+ years", 4],
+  ])("still reads the older forms: %s", (text, expected) => {
+    expect(parseMinimumExperience(text)).toBe(expected);
+  });
+
+  it("survives zero-width characters in pasted text", () => {
+    // Two U+FEFF sit before the digit in one real posting, picked up from
+    // whatever it was pasted through. They render as nothing, so the text
+    // looks identical and fails to match for a reason invisible in a diff.
+    const zwsp = String.fromCharCode(0xfeff);
+    expect(parseMinimumExperience(`${zwsp}${zwsp}5+ years of professional QA Experience`))
+      .toBe(5);
+  });
+
+  it("takes the headline requirement, not the smallest", () => {
+    // A posting states its overall requirement first, then smaller per-tool
+    // ones. The column means the role's minimum, so the smallest would be
+    // wrong.
+    expect(
+      parseMinimumExperience("5+ years of QA experience. 2+ years with Cypress.")
+    ).toBe(5);
+  });
+
+  it.each([
+    "Great culture. We have been around 5 years.",
+    "Founded 3 years ago by ex-Google engineers",
+    "No experience requirement stated",
+  ])("does not invent a number from %s", (text) => {
+    expect(parseMinimumExperience(text)).toBeNull();
   });
 });
