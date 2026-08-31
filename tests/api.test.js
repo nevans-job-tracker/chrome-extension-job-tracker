@@ -45,4 +45,40 @@ describe("createApplication", () => {
       "Confirm that you are on the home LAN"
     );
   });
+
+  // KAN-55 returns 409 with a plain sentence naming the existing record, and
+  // the popup has no 409-specific handling — it renders whatever message the
+  // error carries. That makes "the detail survives verbatim" the whole
+  // contract: fall back to statusText and the user sees "Conflict", which
+  // names neither the posting nor the record they already have.
+  it("surfaces a duplicate rejection verbatim", async () => {
+    const detail = "Already tracked as #79: Sequencing.com — Senior QA Engineer.";
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      json: async () => ({ detail }),
+    });
+
+    await expect(
+      createApplication({ company: "Sequencing.com" }, { fetchImpl })
+    ).rejects.toThrow(detail);
+  });
+
+  // The archive marker is the part most worth keeping: a rejection pointing at
+  // a record that is not in the list is baffling without it.
+  it("keeps the archived marker on a duplicate rejection", async () => {
+    const detail =
+      "Already tracked as #80 (archived): Sequencing.com — Senior QA Engineer.";
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      json: async () => ({ detail }),
+    });
+
+    await expect(
+      createApplication({ company: "Sequencing.com" }, { fetchImpl })
+    ).rejects.toThrow("(archived)");
+  });
 });
