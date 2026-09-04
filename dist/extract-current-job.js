@@ -458,10 +458,13 @@
     if (/year|yr|annual/.test(word)) return "annual";
     return "unsupported";
   }
+  var asSymbol = (text) => text.replace(/\bUSD\b/gi, "$");
+  var TRAILING_RANGE = /([\d,.]+)\s*(?:([km])\b)?\s*(?:[-–—]|to)\s*([\d,.]+)\s*(?:([km])\b)?\s*USD\b/i;
   function parseSalaryText(value) {
-    const text = normalizeText(value);
-    const range = /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)\s*(?:[-–—]|to)\s*(?:US\s*)?\$?\s*([\d,.]+)\s*([km]?)/i.exec(text);
-    const single = range ? null : /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)/i.exec(text);
+    const raw = normalizeText(value);
+    const text = asSymbol(raw);
+    const range = /[A-Za-z]{0,3}\s*\$\s*([\d,.]+)\s*(?:([km])\b)?\s*(?:[-–—]|to)\s*[A-Za-z]{0,3}\s*\$?\s*([\d,.]+)\s*(?:([km])\b)?/i.exec(text) || TRAILING_RANGE.exec(raw);
+    const single = range ? null : /[A-Za-z]{0,3}\s*\$\s*([\d,.]+)\s*(?:([km])\b)?/i.exec(text);
     const match = range || single;
     if (!match) return null;
     const period = periodFrom(text, match.index + match[0].length);
@@ -472,8 +475,11 @@
         unsupported_period: normalizeText(`${match[0]} ${unit}`.trim())
       };
     }
+    const ANNUAL_FLOOR = 1e3;
+    const bothLookAnnual = (...values) => values.every((v) => Number(String(v).replace(/,/g, "")) >= ANNUAL_FLOOR);
     if (range) {
-      if (!period && !/[km]/i.test(`${range[2]}${range[4]}`)) return null;
+      const suffixed = /[km]/i.test(`${range[2] || ""}${range[4] || ""}`);
+      if (!period && !suffixed && !bothLookAnnual(range[1], range[3])) return null;
       return {
         salary_min: salaryNumber(range[1], range[2] || range[4]),
         salary_max: salaryNumber(range[3], range[4] || range[2]),
@@ -481,7 +487,7 @@
         unsupported_period: null
       };
     }
-    if (!period && !/[km]/i.test(single[2])) return null;
+    if (!period && !/[km]/i.test(single[2] || "")) return null;
     const amount = salaryNumber(single[1], single[2]);
     return {
       salary_min: amount,
@@ -743,7 +749,7 @@
     const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
     const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
     const topText = normalizeText(topCard?.textContent).slice(0, 3e3);
-    const salary = parseSalaryText(topText) || parseSalaryText(description);
+    const salary = parseSalaryText(description) || parseSalaryText(topText);
     let locationText = firstText(doc, [
       ".job-details-jobs-unified-top-card__primary-description-container",
       ".jobs-unified-top-card__bullet",

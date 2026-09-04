@@ -232,4 +232,60 @@ describe("multi-site adapters", () => {
     });
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining("not available") });
   });
+
+  it("prefers the body's range over a single figure in the top card (KAN-69)", () => {
+    // The reported failure: a posting advertising USD 99,000 - 128,500 was
+    // captured as 80000-80000, because the top card's single figure won
+    // unconditionally and the body was never consulted.
+    document.title = "Senior Software QA Automation Engineer I | OneStream | LinkedIn";
+    document.body.innerHTML = `
+      <main>
+        <section class="job-details-jobs-unified-top-card">
+          <div class="job-details-jobs-unified-top-card__company-name">OneStream Software</div>
+          <div class="job-details-jobs-unified-top-card__primary-description-container">United States · 2 days ago</div>
+          <h1>Senior Software QA Automation Engineer I</h1><span>Remote</span>
+          <span>$80,000/yr</span>
+        </section>
+        <section class="jobs-description"><h2>About the job</h2>
+          <div class="jobs-description-content__text">
+            <p>Employment Type: Full-Time</p>
+            <p>Gross Annual Base Salary: USD 99,000 - 128,500</p>
+            <p>At least 3 years of experience.</p>
+          </div>
+        </section>
+      </main>`;
+
+    const result = scrapeLinkedInJob({
+      document,
+      url: "https://www.linkedin.com/jobs/view/4460752410/",
+    });
+
+    expect(result.data.salary_min).toBe(99000);
+    expect(result.data.salary_max).toBe(128500);
+    expect(result.data.pay_period).toBe("annual");
+  });
+
+  it("falls back to the top card when the description states nothing", () => {
+    // The top card is the fallback, not the first choice — it often carries
+    // LinkedIn's estimate rather than the employer's figure.
+    document.title = "QA Engineer | Example | LinkedIn";
+    document.body.innerHTML = `
+      <main>
+        <section class="job-details-jobs-unified-top-card">
+          <div class="job-details-jobs-unified-top-card__company-name">Example</div>
+          <h1>QA Engineer</h1><span>$150,000 - $170,000</span>
+        </section>
+        <section class="jobs-description"><h2>About the job</h2>
+          <div class="jobs-description-content__text"><p>No pay is stated here.</p></div>
+        </section>
+      </main>`;
+
+    const result = scrapeLinkedInJob({
+      document,
+      url: "https://www.linkedin.com/jobs/view/1234567890/",
+    });
+
+    expect(result.data.salary_min).toBe(150000);
+    expect(result.data.salary_max).toBe(170000);
+  });
 });

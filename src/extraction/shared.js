@@ -228,14 +228,28 @@ function periodFrom(text, afterIndex) {
   return "unsupported";
 }
 
+// "USD 99,000 - 128,500" writes the currency as a code rather than a symbol,
+// and the patterns below require a symbol. Rewriting the code to "$" up front
+// is smaller and more legible than teaching every pattern to accept both.
+//
+// A currency marker stays *mandatory*. Without one, "3 - 5 years" and
+// "10 - 40 hrs/week" become salary ranges — far worse than missing a figure.
+const asSymbol = (text) => text.replace(/\bUSD\b/gi, "$");
+
+// The suffix form, which normalising cannot reach: "99,000 - 128,500 USD".
+const TRAILING_RANGE =
+  /([\d,.]+)\s*(?:([km])\b)?\s*(?:[-–—]|to)\s*([\d,.]+)\s*(?:([km])\b)?\s*USD\b/i;
+
 export function parseSalaryText(value) {
-  const text = normalizeText(value);
+  const raw = normalizeText(value);
+  const text = asSymbol(raw);
 
   const range =
-    /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)\s*(?:[-–—]|to)\s*(?:US\s*)?\$?\s*([\d,.]+)\s*([km]?)/i.exec(text);
+    /[A-Za-z]{0,3}\s*\$\s*([\d,.]+)\s*(?:([km])\b)?\s*(?:[-–—]|to)\s*[A-Za-z]{0,3}\s*\$?\s*([\d,.]+)\s*(?:([km])\b)?/i.exec(text)
+    || TRAILING_RANGE.exec(raw);
   const single = range
     ? null
-    : /(?:US\s*)?\$\s*([\d,.]+)\s*([km]?)/i.exec(text);
+    : /[A-Za-z]{0,3}\s*\$\s*([\d,.]+)\s*(?:([km])\b)?/i.exec(text);
   const match = range || single;
   if (!match) return null;
 
@@ -251,11 +265,26 @@ export function parseSalaryText(value) {
     };
   }
 
+  // With no period stated, the figure itself has to say what it is.
+  //
+  // A K or M suffix settles it. So does magnitude — but **only for a range**,
+  // and that restriction is the whole point. Nobody is paid $75,140 an hour,
+  // so "R$75,140.56-R$135,253.01" is plainly an annual band even though the
+  // posting never says so. A lone large figure is not: "$50,000 housing
+  // stipend" and "a $5,000 bonus" are money mentioned in passing, and reading
+  // either as the salary would be worse than reporting none.
+  //
+  // A band is how pay is written; an incidental amount is almost always a
+  // single figure. The floor is the same line §4.2 draws when it renders
+  // values below 1000 unrounded, reused rather than invented — so "$60 - $120"
+  // stays ambiguous and rejected, which is what the guard is for.
+  const ANNUAL_FLOOR = 1000;
+  const bothLookAnnual = (...values) =>
+    values.every((v) => Number(String(v).replace(/,/g, "")) >= ANNUAL_FLOOR);
+
   if (range) {
-    // Without a stated period, a K or M suffix is the only thing that makes a
-    // figure legible as an annual salary. A bare "$60 - $120" is ambiguous and
-    // is left alone rather than guessed at.
-    if (!period && !/[km]/i.test(`${range[2]}${range[4]}`)) return null;
+    const suffixed = /[km]/i.test(`${range[2] || ""}${range[4] || ""}`);
+    if (!period && !suffixed && !bothLookAnnual(range[1], range[3])) return null;
     return {
       salary_min: salaryNumber(range[1], range[2] || range[4]),
       salary_max: salaryNumber(range[3], range[4] || range[2]),
@@ -266,7 +295,8 @@ export function parseSalaryText(value) {
 
   // A single figure — "$86/hour", "$120K". Both ends are set to it, which is
   // what the tracker stores for a fixed rate.
-  if (!period && !/[km]/i.test(single[2])) return null;
+  // No magnitude fallback here, deliberately — see above.
+  if (!period && !/[km]/i.test(single[2] || "")) return null;
   const amount = salaryNumber(single[1], single[2]);
   return {
     salary_min: amount,

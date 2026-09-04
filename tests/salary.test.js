@@ -207,3 +207,78 @@ describe("parseMinimumExperience (KAN-54)", () => {
     expect(parseMinimumExperience(text)).toBeNull();
   });
 });
+
+describe("currency written as a code (KAN-69)", () => {
+  it.each([
+    ["Gross Annual Base Salary: USD 99,000 - 128,500", 99000, 128500],
+    ["USD 99,000 to 128,500 annually", 99000, 128500],
+    ["99,000 - 128,500 USD per year", 99000, 128500],
+  ])("reads %s", (text, min, max) => {
+    // The pattern required a literal "$", so a posting writing the currency
+    // as a code was invisible to it — and the real range was never seen.
+    expect(parseSalaryText(text)).toMatchObject({
+      salary_min: min,
+      salary_max: max,
+      pay_period: "annual",
+    });
+  });
+
+  it("still needs a currency marker of some kind", () => {
+    // Without one, "3 - 5 years" and "10 - 40 hrs/week" become salary ranges,
+    // which is worse than missing a figure.
+    expect(parseSalaryText("99,000 - 128,500")).toBeNull();
+    expect(parseSalaryText("3 - 5 years of experience")).toBeNull();
+    expect(parseSalaryText("Commitment: 10-40 hrs/week")).toBeNull();
+  });
+
+  it("does not treat USDA as a currency", () => {
+    // The word boundary earns its place here.
+    expect(parseSalaryText("USDA approved 5 - 10 sites")).toBeNull();
+  });
+});
+
+describe("a period the posting does not state (KAN-69)", () => {
+  it("reads a five-figure range as annual", () => {
+    // "R$75,140.56-R$135,253.01" states no period. Nobody is paid $75,140 an
+    // hour, so magnitude settles it — the same line §4.2 draws when it renders
+    // values below 1000 unrounded.
+    expect(parseSalaryText("R$75,140.56-R$135,253.01")).toMatchObject({
+      salary_min: 75140.56,
+      salary_max: 135253.01,
+      pay_period: "annual",
+    });
+  });
+
+  it("still refuses a small range with no period", () => {
+    // "$60 - $120" could be hourly or a daily rate. Guessing would be worse
+    // than leaving it blank.
+    expect(parseSalaryText("$60 - $120")).toBeNull();
+  });
+
+  it("reads a currency symbol with a country prefix", () => {
+    // The second "R$" broke the range before: the pattern allowed an optional
+    // "$" on the closing figure but no letters before it.
+    expect(parseSalaryText("R$75,140.56-R$135,253.01").salary_max).toBe(135253.01);
+  });
+});
+
+describe("the thousands suffix (KAN-69)", () => {
+  it.each([
+    ["$5,000 - $9,000 may apply per year", 5000, 9000],
+    ["$5,000 - $9,000 kickoff range per year", 5000, 9000],
+  ])("does not read the next word's first letter as a multiplier: %s", (text, min, max) => {
+    // "may" turned $5,000 into $5,000,000,000 and "kickoff" into $5,000,000.
+    // The suffix now needs a word boundary after it.
+    expect(parseSalaryText(text)).toMatchObject({
+      salary_min: min,
+      salary_max: max,
+    });
+  });
+
+  it.each([
+    ["$120K - $145K", 120000],
+    ["$1.2M package", 1200000],
+  ])("still applies a real suffix: %s", (text, expected) => {
+    expect(parseSalaryText(text).salary_min).toBe(expected);
+  });
+});

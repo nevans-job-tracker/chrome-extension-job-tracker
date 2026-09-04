@@ -38,7 +38,19 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
   const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
   const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
   const topText = normalizeText(topCard?.textContent).slice(0, 3000);
-  const salary = parseSalaryText(topText) || parseSalaryText(description);
+  // The description wins over the top card (KAN-69), which is the reverse of
+  // what this did originally.
+  //
+  // The top card is the more *structured* source, which is why it was
+  // preferred — but on LinkedIn it frequently carries LinkedIn's own estimate
+  // rather than the employer's figure. Two real postings made the case: one
+  // advertising "USD 99,000 - 128,500" was captured as 80000-80000 from a
+  // single top-card number, and one stating "R$75,140.56-R$135,253.01" was
+  // captured as an estimated 64.9-73.08 hourly.
+  //
+  // The body is where the employer states the range themselves. The top card
+  // stays as the fallback for postings whose description says nothing.
+  const salary = parseSalaryText(description) || parseSalaryText(topText);
   let locationText = firstText(doc, [
     ".job-details-jobs-unified-top-card__primary-description-container",
     ".jobs-unified-top-card__bullet",
