@@ -446,6 +446,40 @@ export function parseMinimumExperience(value) {
   return null;
 }
 
+// A nested container that belongs to something *other* than the heading's own
+// section — LinkedIn's "More jobs" rail most often, but the shape is general:
+// a sectioning element inside the container that does not itself hold the
+// heading is, by construction, a different part of the page (KAN-75).
+//
+// Structural elements first, because they are the reliable half and need no
+// knowledge of any one site. The class hints are a second net for rails built
+// out of plain divs, which is common enough to be worth naming.
+const FOREIGN_SECTION = [
+  "section",
+  "article",
+  "aside",
+  "nav",
+  '[role="complementary"]',
+  '[role="navigation"]',
+  '[class*="similar"]',
+  '[class*="more-job"]',
+  '[class*="recommend"]',
+].join(", ");
+
+/**
+ * Whether an element sits inside a section of the page the heading does not own.
+ *
+ * Walks from the element up to the container. Crossing a sectioning element
+ * that excludes the heading means the element belongs to that section rather
+ * than to the description — so it is somebody else's job posting.
+ */
+function inForeignSection(element, container, heading) {
+  for (let node = element.parentElement; node && node !== container; node = node.parentElement) {
+    if (node.matches(FOREIGN_SECTION) && !node.contains(heading)) return true;
+  }
+  return false;
+}
+
 export function textAfterHeading(root, headingText) {
   const heading = exactTextElement(root, headingText);
   if (!heading) return "";
@@ -456,6 +490,12 @@ export function textAfterHeading(root, headingText) {
   if (!container) return "";
   const blocks = [...container.querySelectorAll("p, li, h3, h4")]
     .filter((element) => !(element === heading || heading.contains(element)))
+    // The container is chosen by climbing, and the `length >= 150` preference
+    // above actively favours the *broader* ancestor — so on a page where the
+    // climb lands high enough it encloses neighbouring job cards. Without this
+    // their text becomes the description, and a rate belonging to an unrelated
+    // posting becomes this one's pay (KAN-75).
+    .filter((element) => !inForeignSection(element, container, heading))
     .map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent))
     .filter(Boolean);
   return [...new Set(blocks)].join("\n\n");

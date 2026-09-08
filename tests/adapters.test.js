@@ -288,4 +288,53 @@ describe("multi-site adapters", () => {
     expect(result.data.salary_min).toBe(150000);
     expect(result.data.salary_max).toBe(170000);
   });
+
+  it("does not take pay from a promoted card when the description root is missed (KAN-75)", () => {
+    // The reported failure: a Keeper Security posting stating no pay was saved
+    // as 64.90-73.08 hourly, which belongs to a promoted "QA Engineer" card in
+    // the More jobs rail at the foot of the same page. Three earlier records
+    // carry that same rate to the cent, from three unrelated companies.
+    //
+    // Two things combine. The .jobs-description-* selectors miss, so the scrape
+    // falls back to textAfterHeading, which climbs to an ancestor and harvests
+    // every block inside it — including the rail. Then KAN-69 makes the
+    // description outrank the top card, so a stray rate wins unopposed when the
+    // posting itself states nothing.
+    //
+    // KAN-69's precedence is still right. What was missing is a guarantee that
+    // the body is the body.
+    document.title = "Software Development Engineer in Test (SDET), Vault | Keeper Security | LinkedIn";
+    document.body.innerHTML = `
+      <main>
+        <section class="job-details-jobs-unified-top-card">
+          <div class="job-details-jobs-unified-top-card__company-name">Keeper Security</div>
+          <div class="job-details-jobs-unified-top-card__primary-description-container">United States · 3 days ago</div>
+          <h1>Software Development Engineer in Test (SDET), Vault</h1><span>Remote</span>
+        </section>
+        <section>
+          <h2>About the job</h2>
+          <p>Keeper Security is hiring an experienced SDET to join the Vault team.</p>
+          <p>This is a remote position for candidates based in the United States.</p>
+          <p>At least 4 years of experience in test automation is required.</p>
+          <section class="jobs-similar-jobs">
+            <h3>More jobs</h3>
+            <p>QA Engineer - 7Seventy Recruiting - $64.90 - $73.08 per hour</p>
+          </section>
+        </section>
+      </main>`;
+
+    const result = scrapeLinkedInJob({
+      document,
+      url: "https://www.linkedin.com/jobs/view/4454634854/",
+    });
+
+    expect(result.data.salary_min).toBeNull();
+    expect(result.data.salary_max).toBeNull();
+    // The contamination is not only the salary column — the rail's text was
+    // being stored in job_description too.
+    expect(result.data.job_description).not.toContain("7Seventy");
+    expect(result.data.job_description).toContain("Vault team");
+    // And it says so, rather than leaving the field quietly empty.
+    expect(result.warnings).toContain("Salary was not stated.");
+  });
 });

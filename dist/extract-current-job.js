@@ -578,13 +578,30 @@
     }
     return null;
   }
+  var FOREIGN_SECTION = [
+    "section",
+    "article",
+    "aside",
+    "nav",
+    '[role="complementary"]',
+    '[role="navigation"]',
+    '[class*="similar"]',
+    '[class*="more-job"]',
+    '[class*="recommend"]'
+  ].join(", ");
+  function inForeignSection(element, container, heading) {
+    for (let node = element.parentElement; node && node !== container; node = node.parentElement) {
+      if (node.matches(FOREIGN_SECTION) && !node.contains(heading)) return true;
+    }
+    return false;
+  }
   function textAfterHeading(root, headingText) {
     const heading = exactTextElement(root, headingText);
     if (!heading) return "";
     const preferred = heading.closest("section, article, [class*='description'], [class*='job-details']");
     const container = preferred && normalizeText(preferred.textContent).length >= 150 ? preferred : heading.parentElement;
     if (!container) return "";
-    const blocks = [...container.querySelectorAll("p, li, h3, h4")].filter((element) => !(element === heading || heading.contains(element))).map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent)).filter(Boolean);
+    const blocks = [...container.querySelectorAll("p, li, h3, h4")].filter((element) => !(element === heading || heading.contains(element))).filter((element) => !inForeignSection(element, container, heading)).map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent)).filter(Boolean);
     return [...new Set(blocks)].join("\n\n");
   }
   function finalizeResult({ data, warnings = [], siteLabel }) {
