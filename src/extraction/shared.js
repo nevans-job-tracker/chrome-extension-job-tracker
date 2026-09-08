@@ -473,14 +473,20 @@ const FOREIGN_SECTION = [
  * that excludes the heading means the element belongs to that section rather
  * than to the description — so it is somebody else's job posting.
  */
-function inForeignSection(element, container, heading) {
+function inForeignSection(element, container, heading, selector) {
   for (let node = element.parentElement; node && node !== container; node = node.parentElement) {
-    if (node.matches(FOREIGN_SECTION) && !node.contains(heading)) return true;
+    if (node.matches(selector) && !node.contains(heading)) return true;
   }
   return false;
 }
 
-export function textAfterHeading(root, headingText) {
+/**
+ * @param {string[]} foreignSelectors  Extra boundaries contributed by the
+ *   adapter. Sites that render into hashed class names leave nothing generic
+ *   to match on, so the site that knows its own markup passes it in rather
+ *   than this module accumulating trivia about each one.
+ */
+export function textAfterHeading(root, headingText, { foreignSelectors = [] } = {}) {
   const heading = exactTextElement(root, headingText);
   if (!heading) return "";
   const preferred = heading.closest("section, article, [class*='description'], [class*='job-details']");
@@ -488,6 +494,7 @@ export function textAfterHeading(root, headingText) {
     ? preferred
     : heading.parentElement;
   if (!container) return "";
+  const foreign = [FOREIGN_SECTION, ...foreignSelectors].join(", ");
   const blocks = [...container.querySelectorAll("p, li, h3, h4")]
     .filter((element) => !(element === heading || heading.contains(element)))
     // The container is chosen by climbing, and the `length >= 150` preference
@@ -495,7 +502,7 @@ export function textAfterHeading(root, headingText) {
     // climb lands high enough it encloses neighbouring job cards. Without this
     // their text becomes the description, and a rate belonging to an unrelated
     // posting becomes this one's pay (KAN-75).
-    .filter((element) => !inForeignSection(element, container, heading))
+    .filter((element) => !inForeignSection(element, container, heading, foreign))
     .map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent))
     .filter(Boolean);
   return [...new Set(blocks)].join("\n\n");

@@ -289,37 +289,52 @@ describe("multi-site adapters", () => {
     expect(result.data.salary_max).toBe(170000);
   });
 
-  it("does not take pay from a promoted card when the description root is missed (KAN-75)", () => {
-    // The reported failure: a Keeper Security posting stating no pay was saved
-    // as 64.90-73.08 hourly, which belongs to a promoted "QA Engineer" card in
-    // the More jobs rail at the foot of the same page. Three earlier records
-    // carry that same rate to the cent, from three unrelated companies.
+  it("does not take pay from a promoted card in the More jobs rail (KAN-75)", () => {
+    // Built from the real signed-in DOM, not from the bug report's prose — the
+    // first attempt at this test guessed <section>/<aside> nesting and semantic
+    // class names, passed, and fixed nothing on the live page.
     //
-    // Two things combine. The .jobs-description-* selectors miss, so the scrape
-    // falls back to textAfterHeading, which climbs to an ancestor and harvests
-    // every block inside it — including the rail. Then KAN-69 makes the
-    // description outrank the top card, so a stray rate wins unopposed when the
-    // posting itself states nothing.
+    // LinkedIn renders server-driven UI: every panel is a sibling slot under one
+    // "Primary content" section, class names are hashed, and there is no
+    // sectioning element anywhere between the description and the rail. The ids
+    // are the only stable boundary.
     //
-    // KAN-69's precedence is still right. What was missing is a guarantee that
-    // the body is the body.
-    document.title = "Software Development Engineer in Test (SDET), Vault | Keeper Security | LinkedIn";
+    // So the heading's closest("section, ...") climbs past every slot to Primary
+    // content, and harvesting it takes the rail with it. The posting states no
+    // pay of its own, so the promoted card's rate wins unopposed.
+    document.title = "Software Development Engineer in Test (SDET), Vault | Keeper Security, Inc. | LinkedIn";
     document.body.innerHTML = `
       <main>
-        <section class="job-details-jobs-unified-top-card">
-          <div class="job-details-jobs-unified-top-card__company-name">Keeper Security</div>
-          <div class="job-details-jobs-unified-top-card__primary-description-container">United States · 3 days ago</div>
-          <h1>Software Development Engineer in Test (SDET), Vault</h1><span>Remote</span>
-        </section>
-        <section>
-          <h2>About the job</h2>
-          <p>Keeper Security is hiring an experienced SDET to join the Vault team.</p>
-          <p>This is a remote position for candidates based in the United States.</p>
-          <p>At least 4 years of experience in test automation is required.</p>
-          <section class="jobs-similar-jobs">
-            <h3>More jobs</h3>
-            <p>QA Engineer - 7Seventy Recruiting - $64.90 - $73.08 per hour</p>
-          </section>
+        <section class="e68646ec b01fe692" aria-label="Primary content">
+          <div class="_0c8b40a9 _1458a401" data-testid="lazy-column">
+            <div class="fcc17bba _00a59c4b" id="JobDetails_TopCard_4454634854">
+              <div class="job-details-jobs-unified-top-card__company-name">Keeper Security, Inc.</div>
+              <div class="job-details-jobs-unified-top-card__primary-description-container">United States · 2 weeks ago</div>
+              <h1>Software Development Engineer in Test (SDET), Vault</h1><span>Remote</span>
+            </div>
+            <div class="fcc17bba _00a59c4b" id="JobDetails_AboutTheJob_4454634854">
+              <h2 class="_183ca032">About the job</h2>
+              <div class="_0c8b40a9">
+                <p>Keeper Security is hiring an experienced SDET Automation Engineer, Vault.</p>
+                <p>This is a 100% remote position for candidates in the United States.</p>
+                <p>At least 3 years of experience in test automation is required.</p>
+              </div>
+            </div>
+            <div class="fcc17bba _00a59c4b" id="JobDetails_PremiumCompanyInsights_4454634854">
+              <p>Based on LinkedIn data. Excludes subsidiaries.</p>
+              <p>Median employee tenure: 0.9 years</p>
+            </div>
+            <div class="fcc17bba _00a59c4b" id="JobDetails_SimilarJobsSlot_4454634854">
+              <div data-sdui-component="com.linkedin.sdui.dsl.impl.similarJobs">
+                <h2 class="_183ca032">More jobs</h2>
+                <a href="https://www.linkedin.com/jobs/search-results?keywords=SDET">
+                  <p class="_183ca032"><span>QA Engineer - $64.90 - $73.08 per hour</span></p>
+                  <p class="_2463279f">7Seventy Recruiting</p>
+                  <p class="_0666c601"><span>$64.90/hr - $73.08/hr</span></p>
+                </a>
+              </div>
+            </div>
+          </div>
         </section>
       </main>`;
 
@@ -330,11 +345,14 @@ describe("multi-site adapters", () => {
 
     expect(result.data.salary_min).toBeNull();
     expect(result.data.salary_max).toBeNull();
-    // The contamination is not only the salary column — the rail's text was
-    // being stored in job_description too.
-    expect(result.data.job_description).not.toContain("7Seventy");
-    expect(result.data.job_description).toContain("Vault team");
-    // And it says so, rather than leaving the field quietly empty.
     expect(result.warnings).toContain("Salary was not stated.");
+
+    // The rail was never only a salary problem — its text was going into
+    // job_description too, along with the insights panel. Both are sibling
+    // slots, so one boundary rule removes both.
+    expect(result.data.job_description).toContain("SDET Automation Engineer");
+    expect(result.data.job_description).not.toContain("7Seventy");
+    expect(result.data.job_description).not.toContain("More jobs");
+    expect(result.data.job_description).not.toContain("Based on LinkedIn data");
   });
 });

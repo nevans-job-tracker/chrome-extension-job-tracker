@@ -9,6 +9,22 @@ import {
   textAfterHeading,
 } from "../extraction/shared.js";
 
+// LinkedIn's signed-in job page is server-driven UI: every panel is a slot
+// under one "Primary content" section, and the class names are hashed
+// (_0c8b40a9, fcc17bba) so there is nothing semantic to match on. The ids are
+// the one stable boundary — JobDetails_AboutTheJob_<id>,
+// JobDetails_SimilarJobsSlot_<id>, JobDetails_AboutTheCompany_<id> and so on.
+//
+// This matters because the heading's own `closest("section, ...")` climbs past
+// every slot to Primary content, which encloses the lot. Without a boundary the
+// description harvests the More jobs rail — and a promoted card's hourly rate
+// becomes this posting's pay (KAN-75).
+//
+// A slot that does not contain the "About the job" heading is, by construction,
+// a different panel. That drops the rail, the premium insights and the company
+// blurb in one rule rather than three.
+const LINKEDIN_SLOTS = ['[id^="JobDetails_"]'];
+
 function titleParts(doc) {
   const parts = String(doc.title || "").split("|").map(normalizeText).filter(Boolean);
   if (parts.at(-1)?.toLowerCase() === "linkedin") parts.pop();
@@ -35,9 +51,26 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
   const descriptionRoot = doc.querySelector(
     ".jobs-description-content__text, .jobs-description__content, .jobs-description, .show-more-less-html__markup"
   );
-  const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
-  const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
-  const topText = normalizeText(topCard?.textContent).slice(0, 3000);
+  const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job", { foreignSelectors: LINKEDIN_SLOTS });
+  // The *known* top card, or nothing. The fallback below is deliberately not
+  // allowed to stand in for it when reading pay (KAN-75).
+  const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card");
+
+  // Badges may still be hunted for in a wider container, and were before — the
+  // exact-match test below is narrow enough that a wider net is safe.
+  const badgeRoot = topCard || doc.querySelector("main")?.firstElementChild || doc;
+
+  // Salary, however, comes only from a container we recognise. The old
+  // fallback was `main.firstElementChild`, which on LinkedIn's server-driven
+  // markup is the whole "Primary content" section — every panel on the page,
+  // the More jobs rail included. Reading pay out of that is reading a
+  // neighbouring posting's rate, which is exactly how three records acquired
+  // 64.90-73.08 from a promoted card.
+  //
+  // An unrecognised container has no bounds, so it gets no vote. No salary is
+  // a better answer than another job's salary, and finalizeResult already
+  // warns when the field ends up empty.
+  const topText = topCard ? normalizeText(topCard.textContent).slice(0, 3000) : "";
   // The description wins over the top card (KAN-69), which is the reverse of
   // what this did originally.
   //
@@ -58,7 +91,7 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
     "[class*='top-card'] [class*='primary-description']",
   ]);
   locationText = normalizeText(locationText.split("·")[0]);
-  const remoteBadge = [...(topCard || doc).querySelectorAll("button, span")]
+  const remoteBadge = [...badgeRoot.querySelectorAll("button, span")]
     .map((element) => normalizeText(element.textContent))
     .find((text) => /^(remote|hybrid|on-site)$/i.test(text));
   if (remoteBadge && !new RegExp(remoteBadge, "i").test(locationText)) {
@@ -72,7 +105,7 @@ export function scrapeLinkedInJob({ document: doc = document, url = location.hre
   // Exact match matters here more than it does for Remote/Hybrid: "contract"
   // is a common word in a job description ("contract testing", "under
   // contract"), so scanning prose for it would mislabel roles regularly.
-  const employmentBadge = [...(topCard || doc).querySelectorAll("button, span, li")]
+  const employmentBadge = [...badgeRoot.querySelectorAll("button, span, li")]
     .map((element) => normalizeText(element.textContent))
     .find((text) => /^(full[- ]?time|part[- ]?time|contract|temporary|volunteer)$/i.test(text));
 

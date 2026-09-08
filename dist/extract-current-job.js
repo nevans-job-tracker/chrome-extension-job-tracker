@@ -589,19 +589,20 @@
     '[class*="more-job"]',
     '[class*="recommend"]'
   ].join(", ");
-  function inForeignSection(element, container, heading) {
+  function inForeignSection(element, container, heading, selector) {
     for (let node = element.parentElement; node && node !== container; node = node.parentElement) {
-      if (node.matches(FOREIGN_SECTION) && !node.contains(heading)) return true;
+      if (node.matches(selector) && !node.contains(heading)) return true;
     }
     return false;
   }
-  function textAfterHeading(root, headingText) {
+  function textAfterHeading(root, headingText, { foreignSelectors = [] } = {}) {
     const heading = exactTextElement(root, headingText);
     if (!heading) return "";
     const preferred = heading.closest("section, article, [class*='description'], [class*='job-details']");
     const container = preferred && normalizeText(preferred.textContent).length >= 150 ? preferred : heading.parentElement;
     if (!container) return "";
-    const blocks = [...container.querySelectorAll("p, li, h3, h4")].filter((element) => !(element === heading || heading.contains(element))).filter((element) => !inForeignSection(element, container, heading)).map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent)).filter(Boolean);
+    const foreign = [FOREIGN_SECTION, ...foreignSelectors].join(", ");
+    const blocks = [...container.querySelectorAll("p, li, h3, h4")].filter((element) => !(element === heading || heading.contains(element))).filter((element) => !inForeignSection(element, container, heading, foreign)).map((element) => element.tagName === "LI" ? `- ${normalizeText(element.textContent)}` : normalizeText(element.textContent)).filter(Boolean);
     return [...new Set(blocks)].join("\n\n");
   }
   function finalizeResult({ data, warnings = [], siteLabel }) {
@@ -738,6 +739,7 @@
   }
 
   // src/adapters/linkedin.js
+  var LINKEDIN_SLOTS = ['[id^="JobDetails_"]'];
   function titleParts(doc) {
     const parts = String(doc.title || "").split("|").map(normalizeText).filter(Boolean);
     if (parts.at(-1)?.toLowerCase() === "linkedin") parts.pop();
@@ -763,9 +765,10 @@
     const descriptionRoot = doc.querySelector(
       ".jobs-description-content__text, .jobs-description__content, .jobs-description, .show-more-less-html__markup"
     );
-    const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job");
-    const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card") || doc.querySelector("main")?.firstElementChild;
-    const topText = normalizeText(topCard?.textContent).slice(0, 3e3);
+    const description = normalizeText(descriptionRoot?.innerText || descriptionRoot?.textContent) || textAfterHeading(doc, "About the job", { foreignSelectors: LINKEDIN_SLOTS });
+    const topCard = doc.querySelector(".job-details-jobs-unified-top-card, .jobs-unified-top-card");
+    const badgeRoot = topCard || doc.querySelector("main")?.firstElementChild || doc;
+    const topText = topCard ? normalizeText(topCard.textContent).slice(0, 3e3) : "";
     const salary = parseSalaryText(description) || parseSalaryText(topText);
     let locationText = firstText(doc, [
       ".job-details-jobs-unified-top-card__primary-description-container",
@@ -774,11 +777,11 @@
       "[class*='top-card'] [class*='primary-description']"
     ]);
     locationText = normalizeText(locationText.split("\xB7")[0]);
-    const remoteBadge = [...(topCard || doc).querySelectorAll("button, span")].map((element) => normalizeText(element.textContent)).find((text) => /^(remote|hybrid|on-site)$/i.test(text));
+    const remoteBadge = [...badgeRoot.querySelectorAll("button, span")].map((element) => normalizeText(element.textContent)).find((text) => /^(remote|hybrid|on-site)$/i.test(text));
     if (remoteBadge && !new RegExp(remoteBadge, "i").test(locationText)) {
       locationText = locationText ? `${remoteBadge} (${locationText})` : remoteBadge;
     }
-    const employmentBadge = [...(topCard || doc).querySelectorAll("button, span, li")].map((element) => normalizeText(element.textContent)).find((text) => /^(full[- ]?time|part[- ]?time|contract|temporary|volunteer)$/i.test(text));
+    const employmentBadge = [...badgeRoot.querySelectorAll("button, span, li")].map((element) => normalizeText(element.textContent)).find((text) => /^(full[- ]?time|part[- ]?time|contract|temporary|volunteer)$/i.test(text));
     if (!description) {
       return {
         ok: false,
