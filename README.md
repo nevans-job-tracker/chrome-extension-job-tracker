@@ -119,17 +119,17 @@ npm test
 
 Project structure:
 
-- `manifest.json` — Manifest V3 declaration and permissions
-- `popup.html`, `popup.css`, `popup.js` — review and submission interface
-- `src/sites/catalog.js` — supported job-page URL detection
-- `src/adapters/` — per-site extractors and dispatcher
-- `src/extraction/` — shared structured-data and parsing helpers
-- `src/extractor.js` — existing Wellfound extractor
-- `src/content-script.js`, `dist/extract-current-job.js` — source and committed
+- `manifest.json`: Manifest V3 declaration and permissions
+- `popup.html`, `popup.css`, `popup.js`: review and submission interface
+- `src/sites/catalog.js`: supported job-page URL detection
+- `src/adapters/`: per-site extractors and dispatcher
+- `src/extraction/`: shared structured-data and parsing helpers
+- `src/extractor.js`: existing Wellfound extractor
+- `src/content-script.js`, `dist/extract-current-job.js`: source and committed
   browser bundle
-- `src/payload.js` — tracker payload conversion
-- `src/api.js` — Job Tracker API client
-- `tests/` — extractor, payload, and API tests
+- `src/payload.js`: tracker payload conversion
+- `src/api.js`: Job Tracker API client
+- `tests/`: extractor, payload, and API tests
 
 ## Security and privacy
 
